@@ -1,0 +1,61 @@
+==============================
+ BACKEND — RUN INSTRUCTIONS
+==============================
+
+PREREQUISITES
+-------------
+- Python 3.11+
+- PostgreSQL running on port 5432 with pgvector extension installed
+- Redis running on port 6379
+- PostgreSQL MCP server running on port 5433
+
+ENVIRONMENT SETUP
+-----------------
+Create a .env file in the backend/ folder with the following keys:
+
+    DATABASE_URL=postgresql://<user>:<password>@localhost:5432/<dbname>
+    ANTHROPIC_API_KEY=<your-anthropic-api-key>
+    REDIS_URL=redis://localhost:6379/0
+    SENSITIVE_COLUMNS=password,token,ssn,credit_card,secret,api_key
+    SUMMARY_THRESHOLD=10
+    REDIS_TTL=3600
+    MAX_FOLLOWUPS=2
+    RECENT_HISTORY_COUNT=5
+    PGVECTOR_SIMILARITY_THRESHOLD=0.85
+    PGVECTOR_DEDUP_THRESHOLD=0.98
+    POSTGRES_MCP_PORT=5433
+
+ACTIVATE VIRTUAL ENVIRONMENT
+-----------------------------
+    Windows:    .venv\Scripts\activate
+    Mac/Linux:  source .venv/bin/activate
+
+INSTALL DEPENDENCIES
+--------------------
+    pip install -r requirements.txt
+
+ONE-TIME SETUP (first run only)
+--------------------------------
+1. Initialize database (creates pgvector extension + all tables):
+       python scripts/init_db.py
+
+2. (Optional) Seed dummy user data:
+       python scripts/seed_db.py
+
+START THE SERVER
+----------------
+    uvicorn main:app --reload --port 8000
+
+ENDPOINTS
+---------
+    HTTP:      http://localhost:8000
+    WebSocket: ws://localhost:8000/ws/chat/{session_id}
+    Health:    http://localhost:8000/health
+    History:   http://localhost:8000/api/history/{session_id}
+
+NOTES
+-----
+- db_schema.json is auto-generated from your database on every server start.
+- Re-run init_db.py if you drop and recreate the database.
+- pgvector must be installed in PostgreSQL before running init_db.py.
+  Install guide: https://github.com/pgvector/pgvector

@@ -5,9 +5,12 @@ Node 7: Answer Validator (Haiku).
 On VALID: writes to Redis + question_logs, saves message.
 On INVALID from cache: re-routes to sql. On INVALID from sql: returns error.
 """
+import logging
 import os
 import re
 import anthropic
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import text
 from db import SessionLocal, save_message
 from embeddings import embed_question
@@ -32,6 +35,8 @@ Examples:
 async def validate_answer(state: dict) -> dict:
     answer = state.get("answer", "")
     question = state.get("reconstructed_question", "")
+    logger.info("[Validator] Validating answer for: %r", question)
+    logger.info("[Validator] Answer preview: %s", answer[:120] if answer else "(empty)")
     sql = state.get("sql_generated")
     cache_source = state.get("cache_source")
     session_id = state.get("session_id")
@@ -54,8 +59,10 @@ async def validate_answer(state: dict) -> dict:
     )
     verdict = response.content[0].text.strip()
     is_valid = verdict.upper().startswith("VALID")
+    logger.info("[Validator] Verdict: %s", verdict)
 
     if not is_valid:
+        logger.warning("[Validator] INVALID — cache_source=%s", state.get("cache_source"))
         return {
             **state,
             "validated": False,

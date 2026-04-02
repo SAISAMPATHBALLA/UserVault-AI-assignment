@@ -1,0 +1,36 @@
+===============================
+ FRONTEND — RUN INSTRUCTIONS
+===============================
+
+PREREQUISITES
+-------------
+- Node.js 18+
+- Backend server running on http://localhost:8000 (see backend/run.txt)
+
+INSTALL DEPENDENCIES
+--------------------
+    npm install
+
+START DEV SERVER
+----------------
+    npm run dev
+
+    App will be available at: http://localhost:3000
+    API calls to /api/* are automatically proxied to http://localhost:8000
+
+BUILD FOR PRODUCTION
+--------------------
+    npm run build
+
+    Output goes to the dist/ folder.
+
+PREVIEW PRODUCTION BUILD
+-------------------------
+    npm run preview
+
+NOTES
+-----
+- The backend must be running before opening the app, or WebSocket
+  connections will fail.
+- The dev server port (3000) and backend proxy target (8000) are
+  configured in vite.config.ts.

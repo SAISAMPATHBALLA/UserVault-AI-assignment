@@ -1,4 +1,6 @@
+/// <reference types="vite/client"/>
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Loader } from "rsuite";
 import Message, { MessageType } from "./Message";
 import ReconstructedQuery from "./ReconstructedQuery";
 
@@ -23,6 +25,7 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -42,25 +45,32 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
 
-      if (msg.type === "reconstructed_query") {
+      if (msg.type === "status") {
+        setStatus(msg.message);
+
+      } else if (msg.type === "reconstructed_query") {
+        setStatus("Waiting for your confirmation...");
         setMessages(prev => [
           ...prev,
           { id: crypto.randomUUID(), type: "reconstructed", original: msg.original, reconstructed: msg.query }
         ]);
 
       } else if (msg.type === "rejected") {
+        setStatus(null);
         setMessages(prev => [
           ...prev,
           { id: crypto.randomUUID(), type: "message", role: "rejected", content: msg.reason }
         ]);
 
       } else if (msg.type === "followup") {
+        setStatus(null);
         setMessages(prev => [
           ...prev,
           { id: crypto.randomUUID(), type: "message", role: "followup", content: msg.message }
         ]);
 
       } else if (msg.type === "token") {
+        setStatus(null);
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.role === "assistant" && last.isStreaming) {
@@ -76,6 +86,7 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
         });
 
       } else if (msg.type === "done") {
+        setStatus(null);
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.isStreaming) {
@@ -85,6 +96,7 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
         });
 
       } else if (msg.type === "error") {
+        setStatus(null);
         setMessages(prev => [
           ...prev,
           { id: crypto.randomUUID(), type: "message", role: "error", content: msg.message }
@@ -111,6 +123,7 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
 
   const handleStop = () => {
     send({ type: "stop" });
+    setStatus(null);
     setMessages(prev => prev.filter(m => m.type !== "reconstructed"));
   };
 
@@ -146,6 +159,11 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
             <Message key={m.id} role={m.role!} content={m.content!} isStreaming={m.isStreaming} />
           )
         )}
+        {status && (
+          <div style={STATUS_LOADER}>
+            <Loader speed="fast" content={status} />
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -153,12 +171,12 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && !e.shiftKey && submitQuestion(input)}
-          placeholder="Ask a question about the data…"
-          style={INPUT}
-          disabled={!connected}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && !status && submitQuestion(input)}
+          placeholder={status ? "Processing…" : "Ask a question about the data…"}
+          style={{ ...INPUT, background: status ? "#f9f9f9" : "#fff" }}
+          disabled={!connected || !!status}
         />
-        <button style={SEND_BTN} onClick={() => submitQuestion(input)} disabled={!connected || !input.trim()}>
+        <button style={SEND_BTN} onClick={() => submitQuestion(input)} disabled={!connected || !input.trim() || !!status}>
           Send
         </button>
       </div>
@@ -179,6 +197,9 @@ const MESSAGES: React.CSSProperties = {
 };
 const INPUT_ROW: React.CSSProperties = {
   display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #eee",
+};
+const STATUS_LOADER: React.CSSProperties = {
+  padding: "10px 4px", display: "flex", alignItems: "center",
 };
 const INPUT: React.CSSProperties = {
   flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid #ddd",

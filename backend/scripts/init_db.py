@@ -14,11 +14,29 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
+def create_database_if_missing():
+    url = make_url(DATABASE_URL)
+    db_name = url.database
+    admin_url = url.set(database="postgres")
+    admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :name"),
+            {"name": db_name}
+        ).fetchone()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+            print(f"Created database: {db_name}")
+    admin_engine.dispose()
+
+
 def init():
+    create_database_if_missing()
     engine = create_engine(DATABASE_URL)
     with engine.connect() as conn:
         # Enable pgvector

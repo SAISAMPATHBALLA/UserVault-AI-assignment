@@ -5,8 +5,26 @@ Supports: stop, edit (restarts from Node 1), optimistic reconstruction display.
 """
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
+_NODE_STATUS: dict[str, str] = {
+    "load_context":  "Loading conversation history...",
+    "safety":        "Running safety check...",
+    "reconstruct":   "Understanding your question...",
+    "cache":         "Checking cache...",
+    "check":         "Matching similar questions...",
+    "sql":           "Querying the database...",
+    "validate":      "Validating answer...",
+}
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,7 +32,8 @@ load_dotenv()
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from graph import create_graph_with_checkpointer
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from graph import build_graph
 from db import soft_delete_conversation, save_message, get_conversation_history
 from scripts.generate_schema import generate_schema
 
@@ -25,8 +44,11 @@ _graph = None
 async def lifespan(app: FastAPI):
     global _graph
     generate_schema()          # Refresh db_schema.json at startup
-    _graph = create_graph_with_checkpointer()
-    yield
+    db_url = os.getenv("DATABASE_URL")
+    async with AsyncPostgresSaver.from_conn_string(db_url) as checkpointer:
+        await checkpointer.setup()
+        _graph = build_graph(checkpointer=checkpointer)
+        yield
 
 
 app = FastAPI(lifespan=lifespan)
@@ -82,6 +104,11 @@ async def chat_ws(websocket: WebSocket, session_id: str):
             node = event.get("name", "")
             data = event.get("data", {})
 
+            # Send status update when a node starts
+            if etype == "on_chain_start" and node in _NODE_STATUS:
+                logger.info("Node starting: %s", node)
+                await send({"type": "status", "message": _NODE_STATUS[node]})
+
             # After reconstruct node — send reconstructed query to UI
             if etype == "on_chain_end" and node == "reconstruct":
                 output = data.get("output", {})
@@ -89,7 +116,12 @@ async def chat_ws(websocket: WebSocket, session_id: str):
                 rejection = output.get("rejection_reason")
                 reconstructed = output.get("reconstructed_question", question)
 
-                if intent in ("ANOMALY", "SENSITIVE", "IRRELEVANT", "WRITE", "INCOMPLETE_LIMIT"):
+                if intent == "IRRELEVANT":
+                    await send({"type": "token", "content": "Hi! I'm a database assistant. Ask me anything about the data — like counts, filters, or summaries."})
+                    await send({"type": "done"})
+                    return
+
+                if intent in ("ANOMALY", "SENSITIVE", "WRITE", "INCOMPLETE_LIMIT"):
                     await send({"type": "rejected", "reason": rejection or f"Question classified as {intent}."})
                     return
 
@@ -121,6 +153,7 @@ async def chat_ws(websocket: WebSocket, session_id: str):
                 if answer:
                     await send({"type": "token", "content": answer})
 
+        logger.info("Pipeline complete for session %s", session_id)
         await send({"type": "done"})
 
     try:

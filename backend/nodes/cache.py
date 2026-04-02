@@ -4,9 +4,12 @@ Redis wins on speed (~1ms). If Redis hits, pgvector task is cancelled.
 """
 import asyncio
 import hashlib
+import logging
 import os
 import json
 import redis.asyncio as aioredis
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import text
 from db import SessionLocal
 from embeddings import embed_question
@@ -34,7 +37,8 @@ async def _redis_lookup(question: str) -> str | None:
     return await r.get(_cache_key(question))
 
 
-async def _pgvector_lookup(question: str) -> list[dict]:
+def _pgvector_lookup_sync(question: str) -> list[dict]:
+    """Sync version — runs in executor to avoid blocking the event loop."""
     embedding = embed_question(question)
     emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
     with SessionLocal() as db:
@@ -55,16 +59,22 @@ async def _pgvector_lookup(question: str) -> list[dict]:
     ]
 
 
+async def _pgvector_lookup(question: str) -> list[dict]:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _pgvector_lookup_sync, question)
+
+
 async def cache_lookup(state: dict) -> dict:
     question = state["reconstructed_question"]
+    logger.info("[Cache] Looking up: %r", question)
 
     redis_task = asyncio.create_task(_redis_lookup(question))
     pgvector_task = asyncio.create_task(_pgvector_lookup(question))
 
-    # Wait for Redis first (it's faster)
     redis_result = await redis_task
     if redis_result:
         pgvector_task.cancel()
+        logger.info("[Cache] Redis HIT")
         return {
             **state,
             "cache_source": "redis",
@@ -74,8 +84,10 @@ async def cache_lookup(state: dict) -> dict:
 
     candidates = await pgvector_task
     if candidates:
+        logger.info("[Cache] pgvector HIT — %d candidates", len(candidates))
         return {**state, "cache_source": "pgvector", "candidates": candidates, "answer": None}
 
+    logger.info("[Cache] MISS — routing to SQL agent")
     return {**state, "cache_source": None, "candidates": [], "answer": None}
 
 

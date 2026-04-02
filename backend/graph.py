@@ -4,7 +4,6 @@ Nodes: 0-Load → 1-Safety → 2-Reconstruct → 3/4-Cache → 5-Checker → 6-S
 """
 import os
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.postgres import PostgresSaver
 from typing import TypedDict, Optional
 
 from nodes.context_loader import load_context
@@ -40,18 +39,18 @@ def _wrap_sql_node(state: ChatState) -> ChatState:
     import asyncio
     from nodes.sql_agent import run_sql_agent
     callback = state.get("token_callback")
-    return asyncio.get_event_loop().run_until_complete(run_sql_agent(state, callback))
+    return asyncio.run(run_sql_agent(state, callback))
 
 
 def _wrap_cache_node(state: ChatState) -> ChatState:
     import asyncio
     from nodes.cache import cache_lookup
-    return asyncio.get_event_loop().run_until_complete(cache_lookup(state))
+    return asyncio.run(cache_lookup(state))
 
 
 def _wrap_validate_node(state: ChatState) -> ChatState:
     import asyncio
-    return asyncio.get_event_loop().run_until_complete(validate_answer(state))
+    return asyncio.run(validate_answer(state))
 
 
 def _reject_node(state: ChatState) -> ChatState:
@@ -135,7 +134,3 @@ def build_graph(checkpointer=None) -> StateGraph:
     return g.compile(checkpointer=checkpointer)
 
 
-def create_graph_with_checkpointer():
-    db_url = os.getenv("DATABASE_URL")
-    checkpointer = PostgresSaver.from_conn_string(db_url)
-    return build_graph(checkpointer=checkpointer)

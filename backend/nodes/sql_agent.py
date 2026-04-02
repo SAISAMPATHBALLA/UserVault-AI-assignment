@@ -6,9 +6,11 @@ Streams tokens back via WebSocket callback.
 """
 import os
 import json
+import logging
 import anthropic
 
-_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+logger = logging.getLogger(__name__)
+_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 MCP_URL = f"http://localhost:{os.getenv('POSTGRES_MCP_PORT', 5433)}"
 
 _SYSTEM = """You are a read-only database assistant. You help users query data.
@@ -31,35 +33,46 @@ async def run_sql_agent(state: dict, token_callback=None) -> dict:
     schema = state.get("schema", {})
     schema_hint = _build_schema_hint(schema)
 
+    logger.info("[SQL Agent] Starting for question: %s", question)
+    logger.info("[SQL Agent] Connecting to MCP server at %s", MCP_URL)
+
     user_msg = f"Schema hint:\n{schema_hint}\n\nQuestion: {question}"
 
-    # Agentic loop: Haiku calls MCP tools until it produces a final answer
     messages = [{"role": "user", "content": user_msg}]
     sql_used = []
     final_answer = ""
 
     mcp_server = anthropic.MCPServerHTTP(url=MCP_URL)
 
-    async with _client.messages.stream(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        system=_SYSTEM,
-        messages=messages,
-        mcp_servers=[mcp_server],
-    ) as stream:
-        async for event in stream:
-            if hasattr(event, "type"):
-                if event.type == "content_block_delta" and hasattr(event.delta, "text"):
-                    token = event.delta.text
-                    final_answer += token
-                    if token_callback:
-                        await token_callback({"type": "token", "content": token})
+    try:
+        async with _client.messages.stream(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=_SYSTEM,
+            messages=messages,
+            mcp_servers=[mcp_server],
+        ) as stream:
+            async for event in stream:
+                if hasattr(event, "type"):
+                    if event.type == "content_block_delta" and hasattr(event.delta, "text"):
+                        token = event.delta.text
+                        final_answer += token
+                        if token_callback:
+                            await token_callback({"type": "token", "content": token})
 
-                elif event.type == "content_block_start":
-                    if hasattr(event.content_block, "type") and event.content_block.type == "tool_use":
-                        tool_input = getattr(event.content_block, "input", {})
-                        if "query" in tool_input:
-                            sql_used.append(tool_input["query"])
+                    elif event.type == "content_block_start":
+                        if hasattr(event.content_block, "type") and event.content_block.type == "tool_use":
+                            tool_name = getattr(event.content_block, "name", "?")
+                            tool_input = getattr(event.content_block, "input", {})
+                            logger.info("[SQL Agent] MCP tool call: %s  input: %s", tool_name, tool_input)
+                            if "query" in tool_input:
+                                sql_used.append(tool_input["query"])
+    except Exception as e:
+        logger.error("[SQL Agent] Error during streaming: %s", e, exc_info=True)
+        raise
+
+    logger.info("[SQL Agent] Done. SQL used: %s", sql_used)
+    logger.info("[SQL Agent] Answer length: %d chars", len(final_answer))
 
     return {
         **state,

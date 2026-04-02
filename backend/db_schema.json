@@ -1,0 +1,156 @@
+{
+  "tables": [
+    {
+      "name": "commit",
+      "columns": [
+        { "name": "id", "type": "bigint", "primary_key": true, "nullable": false, "default": "nextval('insightly.commit_id_seq')" },
+        { "name": "hash", "type": "varchar(255)", "nullable": false },
+        { "name": "authorid", "type": "integer", "nullable": false },
+        { "name": "commitid", "type": "varchar(255)", "nullable": false },
+        { "name": "type", "type": "varchar(255)", "nullable": true },
+        { "name": "date", "type": "timestamp", "nullable": true },
+        { "name": "skippedregexfiles", "type": "boolean", "nullable": true, "default": false },
+        { "name": "missingcommit", "type": "boolean", "nullable": true, "default": false },
+        { "name": "message", "type": "text", "nullable": true },
+        { "name": "repoid", "type": "integer", "nullable": false },
+        { "name": "createddate", "type": "timestamp", "nullable": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "modifieddate", "type": "timestamp", "nullable": true },
+        { "name": "repositoryuuid", "type": "varchar(255)", "nullable": true },
+        { "name": "repositoryfullname", "type": "varchar(255)", "nullable": false },
+        { "name": "htmllink", "type": "varchar(65535)", "nullable": true },
+        { "name": "rework", "type": "integer", "nullable": true },
+        { "name": "newwork", "type": "integer", "nullable": true },
+        { "name": "maintenance", "type": "integer", "nullable": true },
+        { "name": "assistance", "type": "integer", "nullable": true },
+        { "name": "linesadded", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "linesremoved", "type": "integer", "nullable": true, "default": 0 },
+        { "name": "originalauthorid", "type": "integer", "nullable": true },
+        { "name": "processed", "type": "boolean", "nullable": false, "default": false },
+        { "name": "skipfromcalculation", "type": "boolean", "nullable": false, "default": false },
+        { "name": "branch", "type": "varchar", "nullable": true },
+        { "name": "jiramappingprocessed", "type": "boolean", "nullable": true },
+        { "name": "organizationid", "type": "integer", "primary_key": true, "nullable": false },
+        { "name": "workspaceid", "type": "integer", "nullable": false },
+        { "name": "codingfilter", "type": "varchar(25)", "nullable": true },
+        { "name": "userintegrationid", "type": "integer", "nullable": true },
+        { "name": "jiradatacollected", "type": "boolean", "nullable": true, "default": false },
+        { "name": "estimated_storypoints", "type": "integer", "nullable": true },
+        { "name": "remark", "type": "varchar", "nullable": true },
+        { "name": "is_auto_excluded", "type": "boolean", "nullable": true, "default": false }
+      ],
+      "constraints": {
+        "primary_key": ["id", "organizationid"],
+        "unique": ["hash", "repoid", "organizationid"]
+      }
+    },
+    {
+      "name": "author",
+      "columns": [
+        { "name": "name", "type": "varchar(1000)", "nullable": true },
+        { "name": "email", "type": "varchar(1000)", "nullable": true },
+        { "name": "id", "type": "bigint", "primary_key": true, "nullable": false, "default": "nextval('insightly.author_id_seq')" },
+        { "name": "nickname", "type": "varchar(1000)", "nullable": true },
+        { "name": "username", "type": "varchar(1000)", "nullable": true },
+        { "name": "profile", "type": "varchar(2000)", "nullable": true },
+        { "name": "avatar", "type": "varchar(2000)", "nullable": true },
+        { "name": "assignedauthorid", "type": "integer", "nullable": true },
+        { "name": "type", "type": "varchar(255)", "nullable": true },
+        { "name": "accountid", "type": "varchar(255)", "nullable": true },
+        { "name": "scmprovider", "type": "varchar(255)", "nullable": false },
+        { "name": "createddate", "type": "timestamp", "nullable": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "modifieddate", "type": "timestamp", "nullable": true },
+        { "name": "active", "type": "boolean", "nullable": true, "default": false },
+        { "name": "organizationid", "type": "bigint", "primary_key": true, "nullable": false },
+        { "name": "joiningdate", "type": "timestamp", "nullable": true },
+        { "name": "jobtitle", "type": "varchar(500)", "nullable": true },
+        { "name": "onboardingtime", "type": "real", "nullable": true },
+        { "name": "skill", "type": "varchar(50)", "nullable": true },
+        { "name": "manageremail", "type": "varchar(1000)", "nullable": true },
+        { "name": "grouphead", "type": "varchar(255)", "nullable": true },
+        { "name": "vendor", "type": "varchar(50)", "nullable": true },
+        { "name": "codingcategory", "type": "varchar(50)", "nullable": true },
+        { "name": "firstactivitydate", "type": "date", "nullable": true },
+        { "name": "access_status", "type": "varchar", "nullable": true },
+        { "name": "archived", "type": "boolean", "nullable": true, "default": false },
+        { "name": "generated", "type": "boolean", "nullable": true, "default": false },
+        { "name": "sharedteams", "type": "text", "nullable": true },
+        { "name": "userintegrationid", "type": "integer", "nullable": true },
+        { "name": "jira_author_id", "type": "integer", "nullable": true },
+        { "name": "external", "type": "boolean", "nullable": true, "default": false },
+        { "name": "labels", "type": "jsonb", "nullable": true, "default": "{}" }
+      ],
+      "constraints": {
+        "primary_key": ["id", "organizationid"],
+        "unique": ["accountid", "scmprovider", "organizationid", "userintegrationid"]
+      }
+    },
+    {
+      "name": "hivelscore",
+      "columns": [
+        { "name": "orgid", "type": "integer", "nullable": false },
+        { "name": "teamid", "type": "integer", "nullable": true },
+        { "name": "formula_source", "type": "varchar", "nullable": false },
+        { "name": "duration_type", "type": "varchar", "nullable": false },
+        { "name": "score", "type": "real", "nullable": false },
+        { "name": "startdate", "type": "date", "nullable": true },
+        { "name": "enddate", "type": "date", "nullable": true },
+        { "name": "id", "type": "bigint", "primary_key": true, "nullable": false, "generated": "identity" }
+      ]
+    },
+    {
+      "name": "pr_comment",
+      "columns": [
+        { "name": "commentid", "type": "bigint", "nullable": true },
+        { "name": "createdon", "type": "timestamp", "nullable": false },
+        { "name": "deleted", "type": "boolean", "nullable": true, "default": false },
+        { "name": "text", "type": "text", "nullable": true },
+        { "name": "updatedon", "type": "timestamp", "nullable": true },
+        { "name": "authorid", "type": "integer", "nullable": false },
+        { "name": "id", "type": "bigint", "primary_key": true, "nullable": false, "default": "nextval('insightly.pr_comment_id_seq')" },
+        { "name": "pullrequestid", "type": "bigint", "nullable": false },
+        { "name": "type", "type": "varchar(255)", "nullable": true },
+        { "name": "originalauthorid", "type": "integer", "nullable": true },
+        { "name": "createddate", "type": "timestamp", "nullable": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "modifieddate", "type": "timestamp", "nullable": true },
+        { "name": "organizationid", "type": "integer", "primary_key": true, "nullable": false },
+        { "name": "threadid", "type": "integer", "nullable": true },
+        { "name": "userintegrationid", "type": "integer", "nullable": true },
+        { "name": "sentimentscore", "type": "integer", "nullable": true },
+        { "name": "sentimentcomment", "type": "text", "nullable": true },
+        { "name": "sentimentprocessed", "type": "boolean", "nullable": true }
+      ],
+      "constraints": {
+        "primary_key": ["id", "organizationid"]
+      }
+    },
+    {
+      "name": "pr_reviewer",
+      "columns": [
+        { "name": "id", "type": "bigint", "primary_key": true, "nullable": false, "default": "nextval('insightly.pr_reviewer_id_seq')" },
+        { "name": "pullrequestid", "type": "bigint", "nullable": false },
+        { "name": "authorid", "type": "integer", "nullable": false },
+        { "name": "approved", "type": "boolean", "nullable": true, "default": false },
+        { "name": "usertype", "type": "varchar(50)", "nullable": true },
+        { "name": "comment", "type": "text", "nullable": true },
+        { "name": "accountid", "type": "varchar(256)", "nullable": true },
+        { "name": "approveddate", "type": "timestamp", "nullable": true },
+        { "name": "originalauthorid", "type": "integer", "nullable": true },
+        { "name": "createddate", "type": "timestamp", "nullable": true, "default": "CURRENT_TIMESTAMP" },
+        { "name": "modifieddate", "type": "timestamp", "nullable": true },
+        { "name": "organizationid", "type": "integer", "primary_key": true, "nullable": false },
+        { "name": "userintegrationid", "type": "integer", "nullable": true },
+        { "name": "repoid", "type": "integer", "nullable": true }
+      ],
+      "constraints": {
+        "primary_key": ["id", "organizationid"],
+        "unique": ["pullrequestid", "authorid", "approveddate", "originalauthorid", "organizationid"]
+      }
+    }
+  ],
+  "relationships": [
+    { "from": "commit.authorid", "to": "author.id" },
+    { "from": "pr_comment.authorid", "to": "author.id" },
+    { "from": "pr_reviewer.authorid", "to": "author.id" },
+    { "from": "pr_comment.pullrequestid", "to": "pr_reviewer.pullrequestid" }
+  ]
+}

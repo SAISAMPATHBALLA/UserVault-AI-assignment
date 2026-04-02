@@ -3,8 +3,12 @@ Node 2: Reconstruct + Classify + Read-Only Check (single Haiku call).
 Returns: reconstructed_question, intent, rejection_reason
 """
 import json
+import logging
 import os
+import re
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 MAX_FOLLOWUPS = int(os.getenv("MAX_FOLLOWUPS", 2))
@@ -21,16 +25,16 @@ Your job (single JSON response):
 2. CLASSIFY the reconstructed question into one of:
    - DB_QUERY: answerable by querying the database tables
    - META_SCHEMA: asking what tables/columns/data exist
-   - INCOMPLETE: too vague to answer even with reasonable inference (use sparingly — infer if possible)
+   - INCOMPLETE: a question that is clearly about data but too vague to answer (e.g. "show me the results", "how many are there?")
    - SENSITIVE: requests restricted fields listed in sensitive_columns
-   - IRRELEVANT: completely unrelated to the database (e.g. "what's the time")
-   - WRITE: attempts to modify data (delete/update/insert/drop)
+   - IRRELEVANT: greetings, small talk, or anything unrelated to the database (e.g. "hi", "hello", "how are you", "what's the time", "write me a poem")
+   - WRITE: attempts to modify data (delete/update/insert/drop/truncate/alter)
    - ANOMALY: gibberish or unresolvable
 
 IMPORTANT RULES:
 - This system is READ-ONLY. Any question asking to modify data must be classified WRITE.
-- Only classify INCOMPLETE if the question truly cannot be answered with any reasonable interpretation.
-  If an answer is fetchable, infer and proceed as DB_QUERY.
+- Only classify INCOMPLETE if the question is clearly trying to query data but lacks enough specifics. Never use INCOMPLETE for greetings or small talk.
+- Greetings ("hi", "hello", "hey", "how are you") = IRRELEVANT.
 - "tell me about it" in a DB conversation context = DB_QUERY (referring to the database).
 - "what's the time" / "write me a poem" = IRRELEVANT.
 
@@ -44,6 +48,7 @@ Respond ONLY with valid JSON, no extra text:
 
 
 def reconstruct_and_classify(state: dict) -> dict:
+    logger.info("[Reconstructor] Raw question: %r", state["question"])
     question = state["question"]
     user_profile = state.get("user_profile", {})
     history = state.get("history", {})
@@ -69,8 +74,13 @@ def reconstruct_and_classify(state: dict) -> dict:
         messages=[{"role": "user", "content": user_msg}]
     )
 
+    logger.info("[Reconstructor] Haiku raw response: %s", response.content[0].text.strip() if response.content else "(empty)")
     try:
-        result = json.loads(response.content[0].text.strip())
+        text = response.content[0].text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text.strip())
+        result = json.loads(text)
     except (json.JSONDecodeError, IndexError):
         return {**state, "intent": "ANOMALY", "rejection_reason": "Failed to parse question."}
 
@@ -88,6 +98,7 @@ def reconstruct_and_classify(state: dict) -> dict:
                 "rejection_reason": "I'm unable to determine what you need. Please rephrase your question.",
             }
 
+    logger.info("[Reconstructor] Intent: %s | Reconstructed: %r", intent, reconstructed)
     return {
         **state,
         "reconstructed_question": reconstructed,
