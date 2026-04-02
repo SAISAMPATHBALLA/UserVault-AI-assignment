@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+websockets
+anthropic
+langgraph
+langgraph-checkpoint-postgres
+sqlalchemy
+psycopg[binary]
+psycopg2
+pgvector
+redis
+python-dotenv
+faker
