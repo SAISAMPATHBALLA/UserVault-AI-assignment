@@ -1,62 +1,118 @@
-import React, { useState } from "react";
+import { useState, useCallback } from "react";
+import LoginForm from "./components/LoginForm";
 import Chat from "./components/Chat";
 import ConversationList from "./components/ConversationList";
 
-// In production this would come from auth/login
-const DEMO_USER_PROFILE = {
-  name: "Sam",
-  id: 1,
-  email: "sam@example.com",
-  city: "Mumbai",
-};
+export interface UserProfile {
+  author_id: number;
+  account_id: string;
+  organization_id: number;
+  name: string;
+  timezone: string;
+  team_id: number | null;
+}
 
-interface Conversation {
+export interface Conversation {
   session_id: string;
-  title?: string;
+  title: string;
   created_at: string;
 }
 
-const generateSessionId = () => crypto.randomUUID();
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function App() {
-  const [conversations, setConversations] = useState<Conversation[]>([
-    { session_id: generateSessionId(), title: "New Chat", created_at: new Date().toISOString() }
-  ]);
-  const [activeSessionId, setActiveSessionId] = useState(conversations[0].session_id);
+  const [profile, setProfile]                 = useState<UserProfile | null>(null);
+  const [conversations, setConversations]     = useState<Conversation[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [creatingSession, setCreatingSession] = useState(false);
 
-  const handleNew = () => {
-    const newConv: Conversation = {
-      session_id: generateSessionId(),
-      title: "New Chat",
-      created_at: new Date().toISOString(),
-    };
-    setConversations(prev => [newConv, ...prev]);
-    setActiveSessionId(newConv.session_id);
-  };
-
-  const handleDelete = (sessionId: string) => {
-    setConversations(prev => prev.filter(c => c.session_id !== sessionId));
-    if (sessionId === activeSessionId) {
-      const remaining = conversations.filter(c => c.session_id !== sessionId);
-      if (remaining.length > 0) setActiveSessionId(remaining[0].session_id);
-      else handleNew();
+  const createNewSession = useCallback(async (p: UserProfile): Promise<string | null> => {
+    setCreatingSession(true);
+    try {
+      const res = await fetch(`${API_URL}/api/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { session_id } = await res.json();
+      return session_id as string;
+    } catch (err) {
+      console.error("Session creation failed:", err);
+      return null;
+    } finally {
+      setCreatingSession(false);
     }
-  };
+  }, []);
+
+  const handleLogin = useCallback(async (p: UserProfile) => {
+    const sid = await createNewSession(p);
+    if (!sid) return;
+    setProfile(p);
+    setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
+    setActiveSessionId(sid);
+  }, [createNewSession]);
+
+  const handleNew = useCallback(async () => {
+    if (!profile) return;
+    const sid = await createNewSession(profile);
+    if (!sid) return;
+    setConversations(prev => [{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }, ...prev]);
+    setActiveSessionId(sid);
+  }, [profile, createNewSession]);
+
+  const handleDelete = useCallback((sid: string) => {
+    setConversations(prev => {
+      const remaining = prev.filter(c => c.session_id !== sid);
+      if (sid === activeSessionId) setActiveSessionId(remaining[0]?.session_id ?? null);
+      return remaining;
+    });
+  }, [activeSessionId]);
+
+  const handleFirstMessage = useCallback((sid: string, text: string) => {
+    setConversations(prev =>
+      prev.map(c =>
+        c.session_id === sid && c.title === "New Chat"
+          ? { ...c, title: text.slice(0, 40) + (text.length > 40 ? "…" : "") }
+          : c
+      )
+    );
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    setProfile(null); setConversations([]); setActiveSessionId(null);
+  }, []);
+
+  if (!profile) {
+    return <LoginForm onLogin={handleLogin} isLoading={creatingSession} />;
+  }
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
+        userName={profile.name}
         onSelect={setActiveSessionId}
         onDelete={handleDelete}
         onNew={handleNew}
+        onLogout={handleLogout}
+        isCreating={creatingSession}
       />
-      <Chat
-        key={activeSessionId}
-        sessionId={activeSessionId}
-        userProfile={DEMO_USER_PROFILE}
-      />
+      {activeSessionId ? (
+        <Chat
+          key={activeSessionId}
+          sessionId={activeSessionId}
+          userProfile={profile}
+          onFirstMessage={(text) => handleFirstMessage(activeSessionId, text)}
+        />
+      ) : (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", background: "#fff", gap: 12 }}>
+          <span style={{ fontSize: 40 }}>💬</span>
+          <p style={{ color: "#6b7280", fontSize: 15 }}>Select a conversation or start a new chat</p>
+        </div>
+      )}
     </div>
   );
 }

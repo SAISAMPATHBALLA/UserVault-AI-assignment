@@ -1,52 +1,43 @@
-import React from "react";
+import type { CSSProperties } from "react";
 
-export type MessageType = "user" | "assistant" | "rejected" | "followup" | "meta" | "error";
+export type MessageRole = "user" | "assistant" | "rejected" | "followup" | "error";
 
-export interface MessageProps {
-  role: MessageType;
+interface Props {
+  role: MessageRole;
   content: string;
-  reconstructedQuery?: string;
-  onStop?: () => void;
-  onEdit?: (q: string) => void;
   isStreaming?: boolean;
 }
 
-const STYLE: Record<MessageType, React.CSSProperties> = {
-  user:       { background: "#e8f4fd", alignSelf: "flex-end",  borderLeft: "4px solid #2196F3" },
-  assistant:  { background: "#f9f9f9", alignSelf: "flex-start", borderLeft: "4px solid #4CAF50" },
-  rejected:   { background: "#fff0f0", alignSelf: "flex-start", borderLeft: "4px solid #f44336" },
-  followup:   { background: "#fffde7", alignSelf: "flex-start", borderLeft: "4px solid #FFC107" },
-  meta:       { background: "#f3e5f5", alignSelf: "flex-start", borderLeft: "4px solid #9C27B0" },
-  error:      { background: "#fce4ec", alignSelf: "flex-start", borderLeft: "4px solid #E91E63" },
+const CONFIG: Record<MessageRole, { bg: string; border: string; label: string; align: CSSProperties["justifyContent"] }> = {
+  user:      { bg: "#eff6ff", border: "#3b82f6", label: "You",                 align: "flex-end"   },
+  assistant: { bg: "#f0fdf4", border: "#22c55e", label: "Analytics Assistant", align: "flex-start" },
+  rejected:  { bg: "#fff1f2", border: "#f43f5e", label: "Blocked",             align: "flex-start" },
+  followup:  { bg: "#fefce8", border: "#eab308", label: "Clarification needed",align: "flex-start" },
+  error:     { bg: "#fef3c7", border: "#f59e0b", label: "Notice",              align: "flex-start" },
 };
 
-const LABEL: Record<MessageType, string> = {
-  user:      "You",
-  assistant: "Assistant",
-  rejected:  "Blocked",
-  followup:  "Clarification needed",
-  meta:      "Schema info",
-  error:     "Error",
-};
-
-export const Message: React.FC<MessageProps> = ({ role, content, isStreaming }) => (
-  <div style={{ ...BASE, ...STYLE[role] }}>
-    <span style={{ fontSize: 11, fontWeight: 700, color: "#666", marginBottom: 4, display: "block" }}>
-      {LABEL[role]}
-    </span>
-    <span style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>
-      {content}
-      {isStreaming && <span style={{ animation: "blink 1s step-end infinite" }}>▌</span>}
-    </span>
-  </div>
-);
-
-const BASE: React.CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 8,
-  maxWidth: "78%",
-  margin: "4px 0",
-  boxShadow: "0 1px 3px rgba(0,0,0,.08)",
-};
-
-export default Message;
+export default function Message({ role, content, isStreaming }: Props) {
+  const cfg = CONFIG[role];
+  return (
+    <div style={{ display: "flex", justifyContent: cfg.align, animation: "fadeIn .2s ease" }}>
+      <div style={{
+        maxWidth: "76%", padding: "10px 14px", borderRadius: 12,
+        background: cfg.bg, borderLeft: `3px solid ${cfg.border}`,
+        boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+        animation: "fadeIn .2s ease",
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".04em" }}>
+          {cfg.label}
+        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap", color: "#1f2937" }}>
+          {content}
+          {isStreaming && (
+            <span style={{ display: "inline-block", width: 2, height: "1em",
+              background: "#4f46e5", marginLeft: 2, verticalAlign: "text-bottom",
+              animation: "blink 1s step-end infinite" }} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,13 +1,13 @@
-/// <reference types="vite/client"/>
+/// <reference types="vite/client" />
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Loader } from "rsuite";
-import Message, { MessageType } from "./Message";
+import Message, { MessageRole } from "./Message";
 import ReconstructedQuery from "./ReconstructedQuery";
+import type { UserProfile } from "../App";
 
-interface ChatMessage {
+interface ChatMsg {
   id: string;
-  type: "message" | "reconstructed";
-  role?: MessageType;
+  kind: "message" | "reconstructed";
+  role?: MessageRole;
   content?: string;
   isStreaming?: boolean;
   original?: string;
@@ -16,138 +16,166 @@ interface ChatMessage {
 
 interface Props {
   sessionId: string;
-  userProfile: Record<string, unknown>;
+  userProfile: UserProfile;
+  onFirstMessage: (text: string) => void;
 }
 
 const WS_BASE = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
 
-const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
+export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) {
+  const [msgs, setMsgs]           = useState<ChatMsg[]>([]);
+  const [input, setInput]         = useState("");
   const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [status, setStatus]       = useState<string | null>(null);
+  const wsRef                     = useRef<WebSocket | null>(null);
+  const bottomRef                 = useRef<HTMLDivElement | null>(null);
+  const firstMsgSent              = useRef(false);
+  const inputRef                  = useRef<HTMLTextAreaElement | null>(null);
 
-  const send = useCallback((obj: unknown) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(obj));
-    }
-  }, []);
-
+  // WebSocket connection
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/chat/${sessionId}`);
     wsRef.current = ws;
+    setMsgs([]);
+    firstMsgSent.current = false;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
+    ws.onopen  = () => { setConnected(true); inputRef.current?.focus(); };
+    ws.onclose = () => { setConnected(false); setStatus(null); };
+    ws.onerror = () => setStatus("Connection error — reconnecting…");
 
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
+      const msg = JSON.parse(ev.data as string);
 
-      if (msg.type === "status") {
-        setStatus(msg.message);
+      switch (msg.type) {
 
-      } else if (msg.type === "reconstructed_query") {
-        setStatus("Waiting for your confirmation...");
-        setMessages(prev => [
-          ...prev,
-          { id: crypto.randomUUID(), type: "reconstructed", original: msg.original, reconstructed: msg.query }
-        ]);
+        case "status":
+          setStatus(msg.message);
+          break;
 
-      } else if (msg.type === "rejected") {
-        setStatus(null);
-        setMessages(prev => [
-          ...prev,
-          { id: crypto.randomUUID(), type: "message", role: "rejected", content: msg.reason }
-        ]);
+        case "reconstructed_query":
+          setStatus(null);
+          addMsg({ kind: "reconstructed", original: msg.original, reconstructed: msg.query });
+          break;
 
-      } else if (msg.type === "followup") {
-        setStatus(null);
-        setMessages(prev => [
-          ...prev,
-          { id: crypto.randomUUID(), type: "message", role: "followup", content: msg.message }
-        ]);
+        case "token":
+          setStatus(null);
+          setMsgs(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "assistant" && last.isStreaming) {
+              return [...prev.slice(0, -1), { ...last, content: (last.content ?? "") + msg.content }];
+            }
+            return [...prev, newMsg("assistant", msg.content, true)];
+          });
+          break;
 
-      } else if (msg.type === "token") {
-        setStatus(null);
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last?.role === "assistant" && last.isStreaming) {
-            return [
-              ...prev.slice(0, -1),
-              { ...last, content: (last.content || "") + msg.content }
-            ];
-          }
-          return [
-            ...prev,
-            { id: crypto.randomUUID(), type: "message", role: "assistant", content: msg.content, isStreaming: true }
-          ];
-        });
+        case "done":
+          setStatus(null);
+          setMsgs(prev => {
+            const last = prev[prev.length - 1];
+            return last?.isStreaming ? [...prev.slice(0, -1), { ...last, isStreaming: false }] : prev;
+          });
+          break;
 
-      } else if (msg.type === "done") {
-        setStatus(null);
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last?.isStreaming) {
-            return [...prev.slice(0, -1), { ...last, isStreaming: false }];
-          }
-          return prev;
-        });
+        case "rejected":
+          setStatus(null);
+          addMsg({ kind: "message", role: "rejected", content: msg.reason });
+          break;
 
-      } else if (msg.type === "error") {
-        setStatus(null);
-        setMessages(prev => [
-          ...prev,
-          { id: crypto.randomUUID(), type: "message", role: "error", content: msg.message }
-        ]);
+        case "followup":
+          setStatus(null);
+          addMsg({ kind: "message", role: "followup", content: msg.message });
+          break;
+
+        case "error":
+          setStatus(null);
+          addMsg({ kind: "message", role: "error", content: msg.message });
+          break;
       }
     };
 
     return () => ws.close();
   }, [sessionId]);
 
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [msgs, status]);
+
+  const addMsg = (partial: Partial<ChatMsg>) => {
+    setMsgs(prev => [...prev, { id: crypto.randomUUID(), kind: "message", ...partial } as ChatMsg]);
+  };
+
+  const newMsg = (role: MessageRole, content: string, isStreaming = false): ChatMsg => ({
+    id: crypto.randomUUID(), kind: "message", role, content, isStreaming,
+  });
+
+  const wsSend = useCallback((obj: unknown) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(obj));
+    }
+  }, []);
 
   const submitQuestion = (text: string) => {
-    if (!text.trim()) return;
-    setMessages(prev => [
-      ...prev,
-      { id: crypto.randomUUID(), type: "message", role: "user", content: text }
-    ]);
-    send({ type: "question", text, user_profile: userProfile });
+    const trimmed = text.trim();
+    if (!trimmed || status || !connected) return;
+
+    if (!firstMsgSent.current) {
+      firstMsgSent.current = true;
+      onFirstMessage(trimmed);
+    }
+
+    addMsg({ kind: "message", role: "user", content: trimmed });
     setInput("");
+    setStatus("Understanding your question…");
+
+    wsSend({ type: "question", text: trimmed, user_profile: userProfile });
   };
 
   const handleStop = () => {
-    send({ type: "stop" });
+    wsSend({ type: "stop" });
     setStatus(null);
-    setMessages(prev => prev.filter(m => m.type !== "reconstructed"));
+    setMsgs(prev => prev.filter(m => m.kind !== "reconstructed"));
   };
 
   const handleEdit = (corrected: string) => {
-    setMessages(prev => prev.filter(m => m.type !== "reconstructed"));
-    setMessages(prev => [
-      ...prev,
-      { id: crypto.randomUUID(), type: "message", role: "user", content: `[Edited] ${corrected}` }
-    ]);
-    send({ type: "edit", query: corrected, user_profile: userProfile });
+    setMsgs(prev => prev.filter(m => m.kind !== "reconstructed"));
+    addMsg({ kind: "message", role: "user", content: `↩ Edited: ${corrected}` });
+    setStatus("Processing edited query…");
+    wsSend({ type: "edit", query: corrected, user_profile: userProfile });
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitQuestion(input);
+    }
+  };
+
+  const isIdle = connected && !status;
 
   return (
     <div style={CONTAINER}>
-      <div style={STATUS_BAR}>
-        <span style={{ color: connected ? "#4CAF50" : "#f44336", fontSize: 12 }}>
-          {connected ? "● Connected" : "○ Disconnected"}
+      {/* Header */}
+      <div style={HEADER}>
+        <span style={{ fontWeight: 600, fontSize: 15, color: "#111" }}>Developer Analytics</span>
+        <span style={{ fontSize: 12, color: connected ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
+          {connected ? "● Live" : "○ Offline"}
         </span>
-        <span style={{ fontSize: 12, color: "#888" }}>Session: {sessionId.slice(0, 8)}…</span>
       </div>
 
-      <div style={MESSAGES}>
-        {messages.map(m =>
-          m.type === "reconstructed" ? (
+      {/* Messages */}
+      <div style={MESSAGES_AREA}>
+        {msgs.length === 0 && !status && (
+          <div style={EMPTY_HINT}>
+            <p style={{ fontSize: 24, marginBottom: 8 }}>👋</p>
+            <p style={{ color: "#6b7280", fontSize: 14 }}>
+              Ask me about your commits, pull requests, code reviews, or performance scores.
+            </p>
+          </div>
+        )}
+
+        {msgs.map(m =>
+          m.kind === "reconstructed" ? (
             <ReconstructedQuery
               key={m.id}
               original={m.original!}
@@ -159,55 +187,86 @@ const Chat: React.FC<Props> = ({ sessionId, userProfile }) => {
             <Message key={m.id} role={m.role!} content={m.content!} isStreaming={m.isStreaming} />
           )
         )}
+
         {status && (
-          <div style={STATUS_LOADER}>
-            <Loader speed="fast" content={status} />
+          <div style={STATUS_ROW}>
+            <Spinner />
+            <span style={{ fontSize: 13, color: "#6b7280" }}>{status}</span>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      <div style={INPUT_ROW}>
-        <input
+      {/* Input */}
+      <div style={INPUT_AREA}>
+        <textarea
+          ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && !e.shiftKey && !status && submitQuestion(input)}
-          placeholder={status ? "Processing…" : "Ask a question about the data…"}
-          style={{ ...INPUT, background: status ? "#f9f9f9" : "#fff" }}
-          disabled={!connected || !!status}
+          onKeyDown={handleKeyDown}
+          placeholder={isIdle ? "Ask about your data… (Enter to send, Shift+Enter for new line)" : status ? "Processing…" : "Connecting…"}
+          disabled={!isIdle}
+          rows={2}
+          style={{ ...TEXTAREA, background: isIdle ? "#fff" : "#f9fafb" }}
         />
-        <button style={SEND_BTN} onClick={() => submitQuestion(input)} disabled={!connected || !input.trim() || !!status}>
+        <button
+          onClick={() => submitQuestion(input)}
+          disabled={!isIdle || !input.trim()}
+          style={{ ...SEND_BTN, opacity: (!isIdle || !input.trim()) ? 0.5 : 1 }}
+        >
           Send
         </button>
       </div>
     </div>
   );
-};
+}
 
+function Spinner() {
+  return (
+    <div style={{
+      width: 14, height: 14, borderRadius: "50%",
+      border: "2px solid #e5e7eb", borderTopColor: "#6366f1",
+      animation: "spin .7s linear infinite", flexShrink: 0,
+    }} />
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const CONTAINER: React.CSSProperties = {
-  display: "flex", flexDirection: "column", height: "100vh", flex: 1, background: "#fff",
+  flex: 1, display: "flex", flexDirection: "column",
+  height: "100vh", background: "#fff", overflow: "hidden",
 };
-const STATUS_BAR: React.CSSProperties = {
-  display: "flex", justifyContent: "space-between", padding: "6px 16px",
-  background: "#fafafa", borderBottom: "1px solid #eee",
+const HEADER: React.CSSProperties = {
+  display: "flex", justifyContent: "space-between", alignItems: "center",
+  padding: "12px 20px", borderBottom: "1px solid #e5e7eb",
+  background: "#fff", flexShrink: 0,
 };
-const MESSAGES: React.CSSProperties = {
-  flex: 1, overflowY: "auto", padding: "16px", display: "flex",
-  flexDirection: "column", gap: 4,
+const MESSAGES_AREA: React.CSSProperties = {
+  flex: 1, overflowY: "auto", padding: "20px",
+  display: "flex", flexDirection: "column", gap: 8,
 };
-const INPUT_ROW: React.CSSProperties = {
-  display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid #eee",
+const STATUS_ROW: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8,
+  padding: "4px 0", marginTop: 4,
 };
-const STATUS_LOADER: React.CSSProperties = {
-  padding: "10px 4px", display: "flex", alignItems: "center",
+const INPUT_AREA: React.CSSProperties = {
+  display: "flex", gap: 10, padding: "12px 16px",
+  borderTop: "1px solid #e5e7eb", background: "#fff", flexShrink: 0,
+  alignItems: "flex-end",
 };
-const INPUT: React.CSSProperties = {
-  flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid #ddd",
-  fontSize: 14, outline: "none",
+const TEXTAREA: React.CSSProperties = {
+  flex: 1, padding: "10px 14px", borderRadius: 10,
+  border: "1.5px solid #d1d5db", fontSize: 14, resize: "none",
+  outline: "none", lineHeight: 1.5, fontFamily: "inherit",
 };
 const SEND_BTN: React.CSSProperties = {
-  padding: "10px 20px", background: "#2196F3", color: "#fff", border: "none",
-  borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 14,
+  padding: "10px 20px", background: "#4f46e5", color: "#fff",
+  border: "none", borderRadius: 10, cursor: "pointer",
+  fontWeight: 600, fontSize: 14, flexShrink: 0,
+  transition: "opacity .15s",
 };
-
-export default Chat;
+const EMPTY_HINT: React.CSSProperties = {
+  flex: 1, display: "flex", flexDirection: "column",
+  alignItems: "center", justifyContent: "center", textAlign: "center",
+  padding: "0 40px", gap: 4,
+};
