@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Button, Input, Loader, Tag } from "rsuite";
 import Message, { MessageRole } from "./Message";
 import ReconstructedQuery from "./ReconstructedQuery";
 import type { UserProfile } from "../App";
@@ -20,24 +21,46 @@ interface Props {
   onFirstMessage: (text: string) => void;
 }
 
-const WS_BASE = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
+const WS_BASE  = import.meta.env.VITE_WS_URL  || "ws://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL  || "http://localhost:8000";
 
 export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) {
   const [msgs, setMsgs]           = useState<ChatMsg[]>([]);
   const [input, setInput]         = useState("");
   const [connected, setConnected] = useState(false);
   const [status, setStatus]       = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const wsRef                     = useRef<WebSocket | null>(null);
   const bottomRef                 = useRef<HTMLDivElement | null>(null);
   const firstMsgSent              = useRef(false);
   const inputRef                  = useRef<HTMLTextAreaElement | null>(null);
 
-  // WebSocket connection
+  // Load chat history then open WebSocket
   useEffect(() => {
+    firstMsgSent.current = false;
+    setStatus(null);
+    setHistoryLoading(true);
+
+    // Fetch persisted messages first
+    fetch(`${API_BASE}/api/messages/${sessionId}`)
+      .then(r => r.json())
+      .then((data: { messages: Array<{ role: string; content: string }> }) => {
+        const history: ChatMsg[] = (data.messages || []).map(m => ({
+          id: crypto.randomUUID(),
+          kind: "message",
+          role: m.role as MessageRole,
+          content: m.content,
+          isStreaming: false,
+        }));
+        setMsgs(history);
+        if (history.length > 0) firstMsgSent.current = true;
+      })
+      .catch(() => setMsgs([]))
+      .finally(() => setHistoryLoading(false));
+
+    // Open WebSocket
     const ws = new WebSocket(`${WS_BASE}/ws/chat/${sessionId}`);
     wsRef.current = ws;
-    setMsgs([]);
-    firstMsgSent.current = false;
 
     ws.onopen  = () => { setConnected(true); inputRef.current?.focus(); };
     ws.onclose = () => { setConnected(false); setStatus(null); };
@@ -47,7 +70,6 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
       const msg = JSON.parse(ev.data as string);
 
       switch (msg.type) {
-
         case "status":
           setStatus(msg.message);
           break;
@@ -157,24 +179,33 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
     <div style={CONTAINER}>
       {/* Header */}
       <div style={HEADER}>
-        <span style={{ fontWeight: 600, fontSize: 15, color: "#111" }}>Developer Analytics</span>
-        <span style={{ fontSize: 12, color: connected ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Developer Analytics</span>
+        </div>
+        <Tag
+          color={connected ? "green" : "red"}
+          style={{ fontSize: 11, fontWeight: 600 }}
+        >
           {connected ? "● Live" : "○ Offline"}
-        </span>
+        </Tag>
       </div>
 
       {/* Messages */}
       <div style={MESSAGES_AREA}>
-        {msgs.length === 0 && !status && (
-          <div style={EMPTY_HINT}>
-            <p style={{ fontSize: 24, marginBottom: 8 }}>👋</p>
-            <p style={{ color: "#6b7280", fontSize: 14 }}>
+        {historyLoading ? (
+          <div style={CENTER_PLACEHOLDER}>
+            <Loader size="md" content="Loading conversation…" vertical />
+          </div>
+        ) : msgs.length === 0 && !status ? (
+          <div style={CENTER_PLACEHOLDER}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+            <p style={{ color: "#64748b", fontSize: 14, textAlign: "center", maxWidth: 360 }}>
               Ask me about your commits, pull requests, code reviews, or performance scores.
             </p>
           </div>
-        )}
+        ) : null}
 
-        {msgs.map(m =>
+        {!historyLoading && msgs.map(m =>
           m.kind === "reconstructed" ? (
             <ReconstructedQuery
               key={m.id}
@@ -190,8 +221,8 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
 
         {status && (
           <div style={STATUS_ROW}>
-            <Spinner />
-            <span style={{ fontSize: 13, color: "#6b7280" }}>{status}</span>
+            <Loader size="xs" />
+            <span style={{ fontSize: 13, color: "#64748b" }}>{status}</span>
           </div>
         )}
         <div ref={bottomRef} />
@@ -199,35 +230,39 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
 
       {/* Input */}
       <div style={INPUT_AREA}>
-        <textarea
-          ref={inputRef}
+        <Input
+          as="textarea"
+          ref={inputRef as React.Ref<HTMLTextAreaElement>}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(val: string) => setInput(val)}
           onKeyDown={handleKeyDown}
-          placeholder={isIdle ? "Ask about your data… (Enter to send, Shift+Enter for new line)" : status ? "Processing…" : "Connecting…"}
+          placeholder={
+            isIdle
+              ? "Ask about your data… (Enter to send, Shift+Enter for new line)"
+              : status
+              ? "Processing…"
+              : "Connecting…"
+          }
           disabled={!isIdle}
           rows={2}
-          style={{ ...TEXTAREA, background: isIdle ? "#fff" : "#f9fafb" }}
+          style={{
+            flex: 1,
+            borderRadius: 10,
+            resize: "none",
+            fontSize: 14,
+            background: isIdle ? "#fff" : "#f8fafc",
+          }}
         />
-        <button
+        <Button
+          appearance="primary"
           onClick={() => submitQuestion(input)}
           disabled={!isIdle || !input.trim()}
-          style={{ ...SEND_BTN, opacity: (!isIdle || !input.trim()) ? 0.5 : 1 }}
+          style={{ borderRadius: 10, fontWeight: 600, padding: "10px 24px", alignSelf: "flex-end" }}
         >
           Send
-        </button>
+        </Button>
       </div>
     </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <div style={{
-      width: 14, height: 14, borderRadius: "50%",
-      border: "2px solid #e5e7eb", borderTopColor: "#6366f1",
-      animation: "spin .7s linear infinite", flexShrink: 0,
-    }} />
   );
 }
 
@@ -238,35 +273,24 @@ const CONTAINER: React.CSSProperties = {
 };
 const HEADER: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center",
-  padding: "12px 20px", borderBottom: "1px solid #e5e7eb",
-  background: "#fff", flexShrink: 0,
+  padding: "14px 24px", borderBottom: "1px solid #e2e8f0",
+  background: "#fff", flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,.04)",
 };
 const MESSAGES_AREA: React.CSSProperties = {
-  flex: 1, overflowY: "auto", padding: "20px",
-  display: "flex", flexDirection: "column", gap: 8,
+  flex: 1, overflowY: "auto", padding: "20px 24px",
+  display: "flex", flexDirection: "column", gap: 10,
+};
+const CENTER_PLACEHOLDER: React.CSSProperties = {
+  flex: 1, display: "flex", flexDirection: "column",
+  alignItems: "center", justifyContent: "center",
+  padding: "40px 0",
 };
 const STATUS_ROW: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 8,
-  padding: "4px 0", marginTop: 4,
+  padding: "6px 0", marginTop: 4,
 };
 const INPUT_AREA: React.CSSProperties = {
-  display: "flex", gap: 10, padding: "12px 16px",
-  borderTop: "1px solid #e5e7eb", background: "#fff", flexShrink: 0,
-  alignItems: "flex-end",
-};
-const TEXTAREA: React.CSSProperties = {
-  flex: 1, padding: "10px 14px", borderRadius: 10,
-  border: "1.5px solid #d1d5db", fontSize: 14, resize: "none",
-  outline: "none", lineHeight: 1.5, fontFamily: "inherit",
-};
-const SEND_BTN: React.CSSProperties = {
-  padding: "10px 20px", background: "#4f46e5", color: "#fff",
-  border: "none", borderRadius: 10, cursor: "pointer",
-  fontWeight: 600, fontSize: 14, flexShrink: 0,
-  transition: "opacity .15s",
-};
-const EMPTY_HINT: React.CSSProperties = {
-  flex: 1, display: "flex", flexDirection: "column",
-  alignItems: "center", justifyContent: "center", textAlign: "center",
-  padding: "0 40px", gap: 4,
+  display: "flex", gap: 10, padding: "14px 20px",
+  borderTop: "1px solid #e2e8f0", background: "#fff", flexShrink: 0,
+  alignItems: "flex-end", boxShadow: "0 -1px 4px rgba(0,0,0,.04)",
 };

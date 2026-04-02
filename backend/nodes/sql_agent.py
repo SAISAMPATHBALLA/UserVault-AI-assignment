@@ -24,7 +24,6 @@ import schema_cache
 
 logger = logging.getLogger(__name__)
 _async_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-_sync_client  = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 MAX_ITERATIONS = 5
 
@@ -289,7 +288,7 @@ async def _select_tables(question: str, tables_hint: list[str]) -> list[str]:
     all_tables_str = schema_cache.build_table_selection_prompt()
     hint_str = f"\nPre-analysis hint (likely tables): {tables_hint}" if tables_hint else ""
     try:
-        response = _sync_client.messages.create(
+        response = await _async_client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=100,
             system=_TABLE_SELECT_SYSTEM,

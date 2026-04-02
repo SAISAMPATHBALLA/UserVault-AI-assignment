@@ -202,6 +202,36 @@ def get_followup_count(session_id: str) -> int:
         return row[0]
 
 
+def get_all_messages(session_id: str) -> list[dict]:
+    """Returns all non-deleted messages for a session ordered chronologically (for UI history)."""
+    with SessionLocal() as db:
+        conv = db.execute(
+            text("SELECT id FROM conversations WHERE session_id = :sid AND is_deleted = FALSE"),
+            {"sid": session_id}
+        ).fetchone()
+        if not conv:
+            return []
+        rows = db.execute(
+            text("""
+                SELECT role, content, intent, cache_hit, created_at
+                FROM messages
+                WHERE conversation_id = :cid AND is_deleted = FALSE
+                ORDER BY id ASC
+            """),
+            {"cid": conv[0]}
+        ).fetchall()
+        return [
+            {
+                "role": r.role,
+                "content": r.content,
+                "intent": r.intent,
+                "cache_hit": r.cache_hit,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+
+
 def maybe_summarize(session_id: str, conv_id: int):
     """Triggers async summary if threshold reached. Called after every message save."""
     threshold = int(os.getenv("SUMMARY_THRESHOLD", 10))

@@ -1,4 +1,15 @@
 import React, { useState } from "react";
+import {
+  Form,
+  Button,
+  SelectPicker,
+  Panel,
+  Stack,
+  Input,
+  InputGroup,
+  Message,
+  Loader,
+} from "rsuite";
 import type { UserProfile } from "../App";
 
 const TIMEZONES = [
@@ -6,7 +17,7 @@ const TIMEZONES = [
   "America/New_York", "America/Los_Angeles", "America/Chicago",
   "Europe/London", "Europe/Berlin", "Europe/Paris",
   "Australia/Sydney",
-];
+].map(tz => ({ label: tz, value: tz }));
 
 interface Props {
   onLogin: (profile: UserProfile) => void;
@@ -24,11 +35,10 @@ export default function LoginForm({ onLogin, isLoading }: Props) {
   });
   const [error, setError] = useState("");
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }));
+  const set = (k: keyof typeof form) => (val: string) =>
+    setForm(prev => ({ ...prev, [k]: val }));
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     setError("");
     if (!form.name.trim() || !form.author_id || !form.account_id || !form.organization_id) {
       setError("Please fill in all required fields.");
@@ -48,87 +58,97 @@ export default function LoginForm({ onLogin, isLoading }: Props) {
 
   return (
     <div style={OUTER}>
-      <div style={CARD}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📊</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111" }}>Developer Analytics</h1>
-          <p style={{ color: "#6b7280", fontSize: 14, marginTop: 4 }}>
-            Ask questions about your commits, pull requests, and performance
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Display Name *" type="text" placeholder="e.g. Alex Kumar"
-            value={form.name} onChange={set("name")} />
-          <Field label="Author ID *" type="number" placeholder="e.g. 12345"
-            value={form.author_id} onChange={set("author_id")} />
-          <Field label="Account ID *" type="text" placeholder="e.g. acc_abc123"
-            value={form.account_id} onChange={set("account_id")} />
-          <Field label="Organization ID *" type="number" placeholder="e.g. 67890"
-            value={form.organization_id} onChange={set("organization_id")} />
-          <Field label="Team ID" type="number" placeholder="Optional"
-            value={form.team_id} onChange={set("team_id")} />
-
-          {/* Timezone */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={LABEL_STYLE}>Timezone</label>
-            <select value={form.timezone} onChange={set("timezone")} style={SELECT_STYLE}>
-              {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
+      <Panel
+        style={CARD}
+        header={
+          <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>📊</div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", margin: 0 }}>
+              Developer Analytics
+            </h2>
+            <p style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>
+              Ask questions about your commits, pull requests, and performance
+            </p>
           </div>
+        }
+        bordered
+      >
+        <Form fluid style={{ marginTop: 8 }}>
+          <Stack direction="column" spacing={14} alignItems="stretch">
 
-          {error && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6,
-              padding: "8px 12px", fontSize: 13, color: "#dc2626" }}>
-              {error}
-            </div>
-          )}
+            <Form.Group>
+              <Form.ControlLabel>Display Name <span style={{ color: "#ef4444" }}>*</span></Form.ControlLabel>
+              <Input placeholder="e.g. Alex Kumar" value={form.name} onChange={set("name")} />
+            </Form.Group>
 
-          <button type="submit" disabled={isLoading} style={{ ...SUBMIT_BTN, opacity: isLoading ? 0.7 : 1 }}>
-            {isLoading ? "Connecting…" : "Start Chatting →"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
+            <Form.Group>
+              <Form.ControlLabel>Author ID <span style={{ color: "#ef4444" }}>*</span></Form.ControlLabel>
+              <Input type="number" placeholder="e.g. 12345" value={form.author_id} onChange={set("author_id")} />
+            </Form.Group>
 
-function Field({ label, type, placeholder, value, onChange }: {
-  label: string; type: string; placeholder: string;
-  value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <label style={LABEL_STYLE}>{label}</label>
-      <input type={type} placeholder={placeholder} value={value} onChange={onChange}
-        style={INPUT_STYLE} required={label.includes("*")} />
+            <Form.Group>
+              <Form.ControlLabel>Account ID <span style={{ color: "#ef4444" }}>*</span></Form.ControlLabel>
+              <Input placeholder="e.g. acc_abc123" value={form.account_id} onChange={set("account_id")} />
+            </Form.Group>
+
+            <Form.Group>
+              <Form.ControlLabel>Organization ID <span style={{ color: "#ef4444" }}>*</span></Form.ControlLabel>
+              <Input type="number" placeholder="e.g. 67890" value={form.organization_id} onChange={set("organization_id")} />
+            </Form.Group>
+
+            <Form.Group>
+              <Form.ControlLabel>Team ID <span style={{ color: "#94a3b8", fontSize: 11 }}>(optional)</span></Form.ControlLabel>
+              <Input type="number" placeholder="Optional" value={form.team_id} onChange={set("team_id")} />
+            </Form.Group>
+
+            <Form.Group>
+              <Form.ControlLabel>Timezone</Form.ControlLabel>
+              <SelectPicker
+                data={TIMEZONES}
+                value={form.timezone}
+                onChange={val => set("timezone")(val ?? "UTC")}
+                cleanable={false}
+                block
+                searchable
+              />
+            </Form.Group>
+
+            {error && (
+              <Message type="error" showIcon>
+                {error}
+              </Message>
+            )}
+
+            <Button
+              appearance="primary"
+              block
+              onClick={handleSubmit}
+              disabled={isLoading}
+              style={{ marginTop: 4, fontWeight: 600, fontSize: 15, padding: "11px" }}
+            >
+              {isLoading ? <><Loader size="xs" style={{ marginRight: 6 }} />Connecting…</> : "Start Chatting →"}
+            </Button>
+
+          </Stack>
+        </Form>
+      </Panel>
     </div>
   );
 }
 
 const OUTER: React.CSSProperties = {
-  minHeight: "100vh", display: "flex", alignItems: "center",
-  justifyContent: "center", background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  padding: "24px",
 };
 const CARD: React.CSSProperties = {
-  background: "#fff", borderRadius: 16, padding: "36px 40px",
-  width: "100%", maxWidth: 440, boxShadow: "0 20px 60px rgba(0,0,0,.15)",
-};
-const LABEL_STYLE: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: "#374151",
-};
-const INPUT_STYLE: React.CSSProperties = {
-  padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db",
-  fontSize: 14, outline: "none", width: "100%",
-  transition: "border-color .15s",
-};
-const SELECT_STYLE: React.CSSProperties = {
-  ...INPUT_STYLE, background: "#fff", cursor: "pointer",
-};
-const SUBMIT_BTN: React.CSSProperties = {
-  padding: "11px", background: "#4f46e5", color: "#fff",
-  border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600,
-  cursor: "pointer", marginTop: 4, width: "100%",
-  transition: "opacity .15s",
+  background: "#fff",
+  borderRadius: 16,
+  width: "100%",
+  maxWidth: 440,
+  boxShadow: "0 24px 64px rgba(0,0,0,.18)",
+  padding: "8px 8px",
 };

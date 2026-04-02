@@ -35,7 +35,7 @@ from pydantic import BaseModel
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from graph import build_graph
-from db import soft_delete_conversation, save_message, get_conversation_history, get_or_create_conversation
+from db import soft_delete_conversation, save_message, get_conversation_history, get_or_create_conversation, get_all_messages
 from scripts.generate_schema import generate_schema
 
 _graph = None
@@ -96,6 +96,12 @@ async def create_session(req: SessionRequest):
 async def get_history(session_id: str):
     recent_count = int(os.getenv("RECENT_HISTORY_COUNT", 5))
     return get_conversation_history(session_id, recent_count)
+
+
+@app.get("/api/messages/{session_id}")
+async def get_messages(session_id: str):
+    """Returns all messages for a session (used by the UI to restore chat history)."""
+    return {"messages": get_all_messages(session_id)}
 
 
 # ── REST: Health ───────────────────────────────────────────────────────────────
@@ -171,10 +177,26 @@ async def chat_ws(websocket: WebSocket, session_id: str):
 
         pipeline_complete = False
 
+        _NODE_STATUS = {
+            "safety":      "Running safety checks…",
+            "reconstruct": "Classifying your question…",
+            "cache":       "Checking semantic cache…",
+            "check":       "Evaluating cached results…",
+            "sql":         "Querying the database…",
+            "validate":    "Validating answer…",
+        }
+
         async for event in _graph.astream_events(initial_state, config=config, version="v2"):
             etype = event.get("event")
             node  = event.get("name", "")
             data  = event.get("data", {})
+
+            if etype == "on_chain_start" and node in _NODE_STATUS:
+                logger.info("[Pipeline] ▶ %s starting", node)
+                await send({"type": "status", "message": _NODE_STATUS[node]})
+
+            if etype == "on_chain_end" and node in _NODE_STATUS:
+                logger.info("[Pipeline] ✓ %s done", node)
 
             # ── After safety node ────────────────────────────────────────────
             if etype == "on_chain_end" and node == "safety":

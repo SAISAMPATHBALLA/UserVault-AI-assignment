@@ -88,7 +88,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f8fafc" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
@@ -107,10 +107,14 @@ export default function App() {
           onFirstMessage={(text) => handleFirstMessage(activeSessionId, text)}
         />
       ) : (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", background: "#fff", gap: 12 }}>
-          <span style={{ fontSize: 40 }}>💬</span>
-          <p style={{ color: "#6b7280", fontSize: 15 }}>Select a conversation or start a new chat</p>
+        <div style={{
+          flex: 1, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", background: "#fff", gap: 12,
+        }}>
+          <div style={{ fontSize: 48 }}>💬</div>
+          <p style={{ color: "#94a3b8", fontSize: 15, fontWeight: 500 }}>
+            Select a conversation or start a new chat
+          </p>
         </div>
       )}
     </div>
