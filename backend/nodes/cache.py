@@ -48,21 +48,22 @@ async def _redis_lookup(author_id: int, question: str) -> str | None:
 
 def _pgvector_lookup_sync(author_id: int, embedding: list[float]) -> list[dict]:
     """Sync pgvector ANN query — runs in executor to avoid blocking event loop."""
+    # Build embedding literal directly — safe (only floats/commas/brackets, no user input)
     emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
     with SessionLocal() as db:
         rows = db.execute(
-            text("""
+            text(f"""
                 SELECT id, question, answer, sql_generated,
-                       1 - (question_emb <=> :emb::vector) AS similarity
+                       1 - (question_emb <=> '{emb_str}'::vector) AS similarity
                 FROM question_logs
                 WHERE answered = TRUE
                   AND validated = TRUE
                   AND author_id = :aid
                   AND (expires_at IS NULL OR expires_at > NOW())
-                ORDER BY question_emb <=> :emb::vector
+                ORDER BY question_emb <=> '{emb_str}'::vector
                 LIMIT 5
             """),
-            {"emb": emb_str, "aid": author_id}
+            {"aid": author_id}
         ).fetchall()
 
     return [

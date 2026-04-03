@@ -44,8 +44,12 @@ _TABLE_FILTER_COLUMNS = {
     "hivelscore":  ("orgid", "organization_id"),
 }
 
-_QUALITY_SYSTEM = """You are a quality checker for database query answers.
-Given a question and an answer, determine if the answer correctly and completely addresses the question.
+_QUALITY_SYSTEM = """You are a quality checker for a developer analytics chatbot.
+Given a user question and the chatbot's answer, reply YES if the answer:
+- Contains actual data or a meaningful response (not an error or refusal)
+- Is related to what the user asked, even if the data is aggregated at team/org level rather than personal level
+
+Reply NO only if the answer is an error message, an apology with no data, or completely unrelated to the question.
 Reply with ONLY "YES" or "NO". No explanation."""
 
 
@@ -100,7 +104,7 @@ async def validate_answer(state: dict) -> dict:
             }
 
     # ── Check 3: Quality check (Haiku) ────────────────────────────────────────
-    quality_ok = _check_quality(question, answer)
+    quality_ok = _check_quality(question, answer, user_profile)
     if not quality_ok:
         logger.warning("[Node07] Check3 FAIL — quality check failed (retry=%d)", retry_count)
         if retry_count >= MAX_RETRIES:
@@ -256,20 +260,33 @@ def _check_user_filter_ast(sql: str, user_profile: dict) -> tuple[bool, str]:
 
 # ── Check 3: Haiku quality check ───────────────────────────────────────────────
 
-def _check_quality(question: str, answer: str) -> bool:
+def _check_quality(question: str, answer: str, user_profile: dict) -> bool:
     """Returns True if Haiku confirms the answer addresses the question."""
     if not answer or not answer.strip():
         return False
     # "No data found" type answers are always valid (genuine empty result)
     if re.search(r"\bno data\b|\bno results?\b|\b0 results?\b", answer.lower()):
         return True
+    user_context = (
+        f"author_id={user_profile.get('author_id')} "
+        f"organization_id={user_profile.get('organization_id')} "
+        f"team_id={user_profile.get('team_id')} "
+        f"name={user_profile.get('name')}"
+    )
     try:
         response = _client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=5,
             system=_QUALITY_SYSTEM,
-            messages=[{"role": "user", "content": f"Question: {question}\n\nAnswer: {answer}"}]
+            messages=[{"role": "user", "content": (
+                f"User context: {user_context}\n"
+                f"Question: {question}\n\n"
+                f"Answer: {answer}"
+            )}]
         )
+        logger.info("[Node07] LLM response — fn=_check_quality in=%d out=%d stop=%s text=%r",
+                    response.usage.input_tokens, response.usage.output_tokens,
+                    response.stop_reason, response.content[0].text[:120])
         verdict = response.content[0].text.strip().upper()
         return verdict.startswith("YES")
     except Exception as exc:
@@ -300,6 +317,7 @@ async def _persist_question_log(
             from embeddings import embed_question
             embedding = embed_question(question)
 
+        # Build embedding literal directly — safe (only floats/commas/brackets)
         emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
         from db import SessionLocal
@@ -307,14 +325,14 @@ async def _persist_question_log(
         with SessionLocal() as db:
             # Dedup check: don't insert if near-identical question already exists for this user
             existing = db.execute(
-                text("""
-                    SELECT id, 1 - (question_emb <=> :emb::vector) AS sim
+                text(f"""
+                    SELECT id, 1 - (question_emb <=> '{emb_str}'::vector) AS sim
                     FROM question_logs
                     WHERE answered = TRUE AND author_id = :aid
-                    ORDER BY question_emb <=> :emb::vector
+                    ORDER BY question_emb <=> '{emb_str}'::vector
                     LIMIT 1
                 """),
-                {"emb": emb_str, "aid": author_id}
+                {"aid": author_id}
             ).fetchone()
 
             if existing and float(existing.sim) >= DEDUP_THRESHOLD:
@@ -325,20 +343,19 @@ async def _persist_question_log(
                 )
             else:
                 db.execute(
-                    text("""
+                    text(f"""
                         INSERT INTO question_logs
                             (author_id, question, question_emb, intent,
                              answered, validated, sql_generated, answer,
                              cache_hit, expires_at)
                         VALUES
-                            (:aid, :q, :emb::vector, :intent,
+                            (:aid, :q, '{emb_str}'::vector, :intent,
                              TRUE, TRUE, :sql, :ans,
                              'llm', NOW() + :ttl * INTERVAL '1 second')
                     """),
                     {
                         "aid": author_id,
                         "q": question,
-                        "emb": emb_str,
                         "intent": intent,
                         "sql": sql,
                         "ans": answer,
@@ -396,6 +413,9 @@ def _generate_error_reply(error_type: str) -> str:
             max_tokens=80,
             messages=[{"role": "user", "content": prompt}]
         )
+        logger.info("[Node07] LLM response — fn=_generate_error_reply in=%d out=%d stop=%s text=%r",
+                    resp.usage.input_tokens, resp.usage.output_tokens,
+                    resp.stop_reason, resp.content[0].text[:120])
         return resp.content[0].text.strip()
     except Exception:
         return "I wasn't able to complete that request. Please try rephrasing your question."

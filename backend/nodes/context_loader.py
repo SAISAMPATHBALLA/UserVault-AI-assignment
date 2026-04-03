@@ -128,5 +128,8 @@ async def trigger_summary(session_id: str, conv_id: int):
         max_tokens=512,
         messages=[{"role": "user", "content": prompt}]
     )
+    logger.info("[Node00] LLM response — fn=trigger_summary in=%d out=%d stop=%s text=%r",
+                response.usage.input_tokens, response.usage.output_tokens,
+                response.stop_reason, response.content[0].text[:120])
     new_summary = response.content[0].text.strip()
     update_conversation_summary(session_id, new_summary, last_msg_id)

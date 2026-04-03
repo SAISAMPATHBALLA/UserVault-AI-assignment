@@ -245,7 +245,12 @@ async def chat_ws(websocket: WebSocket, session_id: str):
                 output = data.get("output", {})
                 if output.get("validated"):
                     pipeline_complete = True
-                    # Tokens were streamed by Node 06 callback; send done signal
+                    cache_source = output.get("cache_source", "unknown")
+                    sql = output.get("sql_generated")
+                    logger.info("[Pipeline] Answer validated — source=%s sql=%r", cache_source, sql)
+                    answer = output.get("answer", "")
+                    if answer:
+                        await send({"type": "token", "content": answer})
                     await send({"type": "done"})
                     return
 

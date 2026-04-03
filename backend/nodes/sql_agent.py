@@ -62,11 +62,11 @@ Rules:
 
 _PER_TABLE_FILTER_RULES = """MANDATORY USER ISOLATION RULES — NEVER VIOLATE:
 Apply these exact WHERE conditions for each table used:
-  - author      → WHERE id = {author_id}
-  - pr_reviewer → WHERE authorid = {author_id}
-  - pr_comment  → WHERE authorid = {author_id}
-  - commit      → WHERE authorid = {author_id}
-  - hivelscore  → WHERE orgid = {organization_id} AND (teamid = {team_id} OR teamid IS NULL)
+  - insightly.author      → WHERE id = {author_id}
+  - insightly.pr_reviewer → WHERE authorid = {author_id}
+  - insightly.pr_comment  → WHERE authorid = {author_id}
+  - insightly.commit      → WHERE authorid = {author_id}
+  - insightly.hivelscore  → WHERE orgid = {organization_id} 
 These filters MUST appear in every query on these tables. No exceptions."""
 
 _LIMIT_PATTERN = re.compile(r"\bLIMIT\s+\d+\b", re.IGNORECASE)
@@ -98,7 +98,6 @@ async def run_sql_agent(state: dict, token_callback=None) -> dict:
     filter_rules = _PER_TABLE_FILTER_RULES.format(
         author_id=author_id,
         organization_id=organization_id,
-        team_id=team_id if team_id is not None else "NULL",
     )
 
     agent_system = f"""You are a read-only SQL assistant for a developer analytics platform.
@@ -173,12 +172,16 @@ ADDITIONAL RULES:
                             cur_tool = {}
 
                 final_msg = await stream.get_final_message()
+                logger.info("[Node06] LLM response — fn=agent_loop iter=%d in=%d out=%d stop=%s",
+                            iteration + 1, final_msg.usage.input_tokens,
+                            final_msg.usage.output_tokens, final_msg.stop_reason)
 
         except Exception as exc:
             logger.error("[Node06] Stream error on iteration %d: %s", iteration + 1, exc, exc_info=True)
             break
 
         stop_reason = final_msg.stop_reason
+        logger.info("[Node06] Iter %d — stop=%s tool_calls=%d", iteration + 1, stop_reason, len(tool_calls))
 
         if stop_reason == "end_turn" or not tool_calls:
             final_answer = text_acc
@@ -220,10 +223,6 @@ ADDITIONAL RULES:
     # ── Step 4: Post-processing ───────────────────────────────────────────────
     final_answer = _apply_post_processing(question, final_answer)
 
-    # Stream the final answer (single send — SQL was hidden during the loop)
-    if token_callback and final_answer:
-        await token_callback({"type": "token", "content": final_answer})
-
     logger.info("[Node06] Done — %d iterations, %d SQL queries, %d chars",
                 min(iteration + 1, MAX_ITERATIONS), len(sql_used), len(final_answer))
 
@@ -254,7 +253,7 @@ def _execute_tool(name: str, tool_input: dict, author_id: int, organization_id: 
             sql = sql.rstrip().rstrip(";") + " LIMIT 100"
             logger.info("[Node06] LIMIT injected into SQL")
 
-        logger.info("[Node06] Executing SQL: %s", sql[:120])
+        logger.info("[Node06] Executing SQL: %s", sql[:])
         try:
             rows = db_source.execute_query(sql)
             if not rows:
@@ -302,6 +301,9 @@ async def _select_tables(question: str, tables_hint: list[str]) -> list[str]:
                 )
             }]
         )
+        logger.info("[Node06] LLM response — fn=_select_tables in=%d out=%d stop=%s text=%r",
+                    response.usage.input_tokens, response.usage.output_tokens,
+                    response.stop_reason, response.content[0].text[:])
         raw = response.content[0].text.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw.strip())

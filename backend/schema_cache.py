@@ -113,7 +113,7 @@ def load_from_source_db() -> bool:
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = %s
+                WHERE table_schema = 'insightly' AND table_name = %s
                 ORDER BY ordinal_position
                 """,
                 (table_name,),
@@ -161,6 +161,7 @@ def build_agent_schema_for_tables(selected_tables: list[str]) -> str:
     """
     Returns schema string for ONLY the selected tables.
     Injected into Node 06 agent system prompt (selective injection).
+    Table names are prefixed with 'insightly.' so the agent generates correct schema-qualified SQL.
     """
     lines = []
     for tname in selected_tables:
@@ -168,5 +169,5 @@ def build_agent_schema_for_tables(selected_tables: list[str]) -> str:
         if not meta:
             continue
         col_str = ", ".join(meta["columns"])
-        lines.append(f"Table: {tname}\nColumns: {col_str}")
+        lines.append(f"Table: insightly.{tname}\nColumns: {col_str}")
     return "\n\n".join(lines)

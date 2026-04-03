@@ -83,6 +83,9 @@ def reconstruct_and_classify(state: dict) -> dict:
             system=_SYSTEM,
             messages=[{"role": "user", "content": user_msg}]
         )
+        logger.info("[Node02] LLM response — fn=reconstruct_and_classify in=%d out=%d stop=%s text=%r",
+                    response.usage.input_tokens, response.usage.output_tokens,
+                    response.stop_reason, response.content[0].text[:120])
         raw_text = response.content[0].text.strip()
         # Strip markdown code fences if present
         raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
@@ -171,6 +174,9 @@ def _generate_rephrase_message() -> str:
                 )
             }]
         )
+        logger.info("[Node02] LLM response — fn=_generate_rephrase_message in=%d out=%d stop=%s text=%r",
+                    resp.usage.input_tokens, resp.usage.output_tokens,
+                    resp.stop_reason, resp.content[0].text[:120])
         return resp.content[0].text.strip()
     except Exception:
         return "Could you please rephrase your question with more specific details about what you'd like to see?"

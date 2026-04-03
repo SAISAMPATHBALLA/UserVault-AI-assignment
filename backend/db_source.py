@@ -20,6 +20,9 @@ def _get_pool() -> ThreadedConnectionPool:
         dsn = os.getenv("SOURCE_DB_URL")
         if not dsn:
             raise RuntimeError("SOURCE_DB_URL not set in environment")
+        # Append connect_timeout so unreachable RDS fails fast instead of hanging 30s
+        sep = "&" if "?" in dsn else "?"
+        dsn = dsn + sep + "connect_timeout=5"
         _pool = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=dsn)
         logger.info("[db_source] Connection pool created (Source DB)")
     return _pool
@@ -30,7 +33,11 @@ def execute_query(sql: str, params=None) -> list[dict]:
     Execute a SELECT query on the Source DB and return rows as list of dicts.
     Caller must ensure SQL is SELECT-only — this is enforced by DB user permissions.
     """
-    pool = _get_pool()
+    try:
+        pool = _get_pool()
+    except Exception as exc:
+        logger.error("[db_source] Cannot connect to Source DB: %s", exc)
+        raise RuntimeError("Could not connect to the analytics database. Please try again later.") from None
     conn = pool.getconn()
     try:
         conn.set_session(readonly=True, autocommit=True)

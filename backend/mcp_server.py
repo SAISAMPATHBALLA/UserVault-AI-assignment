@@ -53,6 +53,7 @@ def query_database(sql: str) -> str:
     Returns:
         Query results as a text table, or an error message.
     """
+    logger.info("Received query_database tool call.")
     logger.info("Tool call: query_database — %s", sql[:120])
 
     if not sql.strip():
@@ -97,6 +98,7 @@ def query_database(sql: str) -> str:
 def list_tables() -> str:
     """List all available tables in the analytics Source DB."""
     try:
+        logger.info("Tool call: list_tables")
         conn = psycopg2.connect(SOURCE_DB_URL)
         conn.set_session(readonly=True, autocommit=True)
         with conn.cursor() as cur:
@@ -124,9 +126,11 @@ def _sanitize_error(exc) -> str:
 
 
 if __name__ == "__main__":
+    print("Starting PostgreSQL MCP Server...")
     if not SOURCE_DB_URL:
         raise RuntimeError("SOURCE_DB_URL not set in .env")
     host_part = SOURCE_DB_URL.split("@")[-1] if "@" in SOURCE_DB_URL else "configured"
     logger.info("MCP Server starting on port %d → Source DB: %s", PORT, host_part)
     app = mcp.sse_app()
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
+    

@@ -65,6 +65,9 @@ def check_candidates(state: dict) -> dict:
             system=_MATCH_SYSTEM,
             messages=[{"role": "user", "content": user_content}]
         )
+        logger.info("[Node05] LLM response — fn=check_candidates in=%d out=%d stop=%s text=%r",
+                    response.usage.input_tokens, response.usage.output_tokens,
+                    response.stop_reason, response.content[0].text[:120])
         result = response.content[0].text.strip()
     except Exception as exc:
         logger.error("[Node05] Haiku call failed: %s — routing to SQL agent", exc)

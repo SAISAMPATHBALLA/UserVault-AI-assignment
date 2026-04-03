@@ -178,6 +178,9 @@ def _haiku_decline(session_id: str, reason_type: str) -> str:
                 )
             }]
         )
+        logger.info("[Node01] LLM response — fn=_haiku_decline in=%d out=%d stop=%s text=%r",
+                    response.usage.input_tokens, response.usage.output_tokens,
+                    response.stop_reason, response.content[0].text[:120])
         return response.content[0].text.strip()
     except Exception as exc:
         logger.error("[Node01] Haiku decline call failed: %s", exc)
