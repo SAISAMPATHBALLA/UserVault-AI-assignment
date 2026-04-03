@@ -1,5 +1,4 @@
-import { useState, useCallback } from "react";
-import LoginForm from "./components/LoginForm";
+import React, { useState, useCallback } from "react";
 import Chat from "./components/Chat";
 import ConversationList from "./components/ConversationList";
 
@@ -45,19 +44,32 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = useCallback(async (p: UserProfile) => {
-    const sid = await createNewSession(p);
-    if (!sid) return;
+  // Called when profile is saved or updated from the sidebar form
+  const handleProfileUpdate = useCallback(async (p: UserProfile) => {
+    const authorChanged = !profile
+      || profile.author_id !== p.author_id
+      || profile.organization_id !== p.organization_id;
+
     setProfile(p);
-    setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
-    setActiveSessionId(sid);
-  }, [createNewSession]);
+
+    if (authorChanged) {
+      // Different user — create fresh session and clear history
+      const sid = await createNewSession(p);
+      if (!sid) return;
+      setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
+      setActiveSessionId(sid);
+    }
+    // If only name/timezone changed, existing session stays valid
+  }, [profile, createNewSession]);
 
   const handleNew = useCallback(async () => {
     if (!profile) return;
     const sid = await createNewSession(profile);
     if (!sid) return;
-    setConversations(prev => [{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }, ...prev]);
+    setConversations(prev => [
+      { session_id: sid, title: "New Chat", created_at: new Date().toISOString() },
+      ...prev,
+    ]);
     setActiveSessionId(sid);
   }, [profile, createNewSession]);
 
@@ -79,27 +91,20 @@ export default function App() {
     );
   }, []);
 
-  const handleLogout = useCallback(() => {
-    setProfile(null); setConversations([]); setActiveSessionId(null);
-  }, []);
-
-  if (!profile) {
-    return <LoginForm onLogin={handleLogin} isLoading={creatingSession} />;
-  }
-
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f8fafc" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f1f5f9" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
-        userName={profile.name}
+        profile={profile}
         onSelect={setActiveSessionId}
         onDelete={handleDelete}
         onNew={handleNew}
-        onLogout={handleLogout}
+        onProfileUpdate={handleProfileUpdate}
         isCreating={creatingSession}
       />
-      {activeSessionId ? (
+
+      {activeSessionId && profile ? (
         <Chat
           key={activeSessionId}
           sessionId={activeSessionId}
@@ -107,16 +112,42 @@ export default function App() {
           onFirstMessage={(text) => handleFirstMessage(activeSessionId, text)}
         />
       ) : (
-        <div style={{
-          flex: 1, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", background: "#fff", gap: 12,
-        }}>
-          <div style={{ fontSize: 48 }}>💬</div>
-          <p style={{ color: "#94a3b8", fontSize: 15, fontWeight: 500 }}>
-            Select a conversation or start a new chat
+        <div style={EMPTY_STATE}>
+          <div style={EMPTY_ICON}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <p style={{ color: "#64748b", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
+            {profile ? "Select or start a conversation" : "Set up your profile to begin"}
+          </p>
+          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+            {profile
+              ? "Choose a chat from the sidebar or create a new one"
+              : "Fill in your profile details in the sidebar"}
           </p>
         </div>
       )}
     </div>
   );
 }
+
+const EMPTY_STATE: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#f8fafc",
+  gap: 8,
+};
+const EMPTY_ICON: React.CSSProperties = {
+  width: 80,
+  height: 80,
+  borderRadius: "50%",
+  background: "#f1f5f9",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 12,
+};
