@@ -38,7 +38,6 @@ def load_context(state: dict) -> dict:
     if validation_error:
         logger.warning("[Node00] user_profile validation failed: %s", validation_error)
         return {**state, "context_error": validation_error}
-
     author_id = int(user_profile["author_id"])
 
     # ── 2. Session → author_id validation (session hijack prevention) ──────────
@@ -70,7 +69,6 @@ def load_context(state: dict) -> dict:
         "followup_count": followup_count,
         "context_error": None,
     }
-
 
 def _validate_user_profile(profile: dict) -> str | None:
     """Returns error message if validation fails, None if OK."""

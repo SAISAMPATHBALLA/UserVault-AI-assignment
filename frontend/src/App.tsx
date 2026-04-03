@@ -11,6 +11,7 @@ export interface UserProfile {
   team_id: number | null;
 }
 
+
 export interface Conversation {
   session_id: string;
   title: string;
@@ -20,7 +21,15 @@ export interface Conversation {
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function App() {
-  const [profile, setProfile]                 = useState<UserProfile | null>(null);
+  const User = {
+  author_id: 133716,
+  account_id: "user_123",
+  organization_id: 1711,
+  name: "Sam",
+  timezone: "IST",
+  team_id: null,
+  }
+  const [profile, setProfile]                 = useState<UserProfile | null>(User);
   const [conversations, setConversations]     = useState<Conversation[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [creatingSession, setCreatingSession] = useState(false);
@@ -52,13 +61,13 @@ export default function App() {
 
     setProfile(p);
 
-    if (authorChanged) {
-      // Different user — create fresh session and clear history
-      const sid = await createNewSession(p);
-      if (!sid) return;
-      setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
-      setActiveSessionId(sid);
-    }
+    // if (authorChanged) {
+    //   // Different user — create fresh session and clear history
+    //   const sid = await createNewSession(p);
+    //   if (!sid) return;
+    //   setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
+    //   setActiveSessionId(sid);
+    // }
     // If only name/timezone changed, existing session stays valid
   }, [profile, createNewSession]);
 
@@ -92,7 +101,7 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f1f5f9" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#ffffff" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
