@@ -6,8 +6,9 @@ langgraph
 langgraph-checkpoint-postgres
 sqlalchemy
 psycopg[binary]
-psycopg2
+psycopg2-binary
 pgvector
 redis
 python-dotenv
-faker
+sentence-transformers
+sqlparse

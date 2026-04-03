@@ -7,71 +7,96 @@ interface Props {
   onEdit: (corrected: string) => void;
 }
 
-const ReconstructedQuery: React.FC<Props> = ({ original, reconstructed, onStop, onEdit }) => {
-  const [editing, setEditing] = useState(false);
+export default function ReconstructedQuery({ original, reconstructed, onStop, onEdit }: Props) {
+  const [editing, setEditing]       = useState(false);
   const [editedText, setEditedText] = useState(reconstructed);
 
   return (
-    <div style={CARD}>
-      <div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>
-        Interpreted your question as:
+    <div style={WRAPPER}>
+      <div style={LABEL}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: 4 }}>
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Interpreted as
       </div>
 
       {editing ? (
         <textarea
           value={editedText}
           onChange={e => setEditedText(e.target.value)}
-          style={TEXTAREA}
           autoFocus
+          rows={2}
+          style={EDIT_INPUT}
         />
       ) : (
-        <div style={{ fontStyle: "italic", color: "#333", fontSize: 14, marginBottom: 8 }}>
-          "{reconstructed}"
-        </div>
+        <div style={QUERY_TEXT}>"{reconstructed}"</div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+      <div style={HINT}>Your message: "{original}"</div>
+
+      <div style={ACTIONS}>
         {editing ? (
           <>
             <button style={BTN_PRIMARY} onClick={() => { onEdit(editedText); setEditing(false); }}>
-              Submit edited query
+              Submit
             </button>
-            <button style={BTN_GHOST} onClick={() => setEditing(false)}>Cancel</button>
+            <button style={BTN_GHOST} onClick={() => { setEditing(false); setEditedText(reconstructed); }}>
+              Cancel
+            </button>
           </>
         ) : (
           <>
-            <button style={BTN_WARN} onClick={onStop}>Stop</button>
-            <button style={BTN_GHOST} onClick={() => setEditing(true)}>Edit Query</button>
+            <button style={BTN_GHOST} onClick={() => setEditing(true)}>
+              ✏ Edit
+            </button>
+            <button style={BTN_STOP} onClick={onStop}>
+              ✕ Stop
+            </button>
           </>
         )}
       </div>
-
-      {!editing && (
-        <div style={{ fontSize: 11, color: "#aaa", marginTop: 6 }}>
-          Original: "{original}"
-        </div>
-      )}
     </div>
   );
-};
+}
 
-const CARD: React.CSSProperties = {
-  background: "#fffbea",
-  border: "1px solid #f0c040",
-  borderRadius: 8,
-  padding: "12px 16px",
-  maxWidth: "78%",
-  margin: "4px 0",
+const WRAPPER: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderLeft: "3px solid #f59e0b",
+  borderRadius: 10,
+  padding: "12px 14px",
+  maxWidth: "75%",
+  display: "flex", flexDirection: "column", gap: 6,
+  boxShadow: "0 1px 4px rgba(0,0,0,.05)",
 };
-const BTN: React.CSSProperties = {
-  padding: "5px 14px", borderRadius: 5, cursor: "pointer", fontSize: 13, border: "none",
+const LABEL: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, color: "#92400e",
+  textTransform: "uppercase", letterSpacing: ".06em",
+  display: "flex", alignItems: "center",
 };
-const BTN_WARN: React.CSSProperties    = { ...BTN, background: "#ff5252", color: "#fff" };
-const BTN_PRIMARY: React.CSSProperties = { ...BTN, background: "#2196F3", color: "#fff" };
-const BTN_GHOST: React.CSSProperties   = { ...BTN, background: "#eee", color: "#333", border: "1px solid #ccc" };
-const TEXTAREA: React.CSSProperties = {
-  width: "100%", minHeight: 60, fontSize: 13, padding: 6, borderRadius: 4,
-  border: "1px solid #ccc", resize: "vertical",
+const QUERY_TEXT: React.CSSProperties = {
+  fontStyle: "italic", color: "#1e293b", fontSize: 13, lineHeight: 1.55,
 };
-
-export default ReconstructedQuery;
+const HINT: React.CSSProperties = {
+  fontSize: 11, color: "#94a3b8",
+};
+const EDIT_INPUT: React.CSSProperties = {
+  width: "100%", boxSizing: "border-box",
+  border: "1px solid #e2e8f0", borderRadius: 6,
+  padding: "7px 10px", fontSize: 13, outline: "none",
+  fontFamily: "inherit", resize: "none",
+};
+const ACTIONS: React.CSSProperties = { display: "flex", gap: 6, marginTop: 2 };
+const BTN_BASE: React.CSSProperties = {
+  border: "1px solid #e2e8f0", borderRadius: 6,
+  padding: "4px 10px", fontSize: 12, cursor: "pointer", fontWeight: 500,
+};
+const BTN_PRIMARY: React.CSSProperties = {
+  ...BTN_BASE, background: "#4f46e5", color: "#fff", border: "none",
+};
+const BTN_GHOST: React.CSSProperties = {
+  ...BTN_BASE, background: "#fff", color: "#475569",
+};
+const BTN_STOP: React.CSSProperties = {
+  ...BTN_BASE, background: "#fff", color: "#ef4444", borderColor: "#fecaca",
+};

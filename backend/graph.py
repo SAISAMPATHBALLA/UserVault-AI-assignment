@@ -1,11 +1,16 @@
 """
 LangGraph pipeline definition.
-Nodes: 0-Load → 1-Safety → 2-Reconstruct → 3/4-Cache → 5-Checker → 6-SQL → 7-Validate
+Nodes: 00-Context → 01-Safety → 02-Reconstruct → 03/04-Cache → 05-Checker → 06-SQL → 07-Validate
+
+State flow:
+  DB_QUERY   → cache → check → sql → validate → done/retry/error
+  INCOMPLETE → followup (END)
+  Others     → reject  (END)
 """
 import os
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.postgres import PostgresSaver
-from typing import TypedDict, Optional
+from typing import Optional, TypedDict
+
+from langgraph.graph import END, StateGraph
 
 from nodes.context_loader import load_context
 from nodes.safety import safety_filter, is_threat
@@ -16,126 +21,139 @@ from nodes.validator import validate_answer, route_after_validation
 
 
 class ChatState(TypedDict):
+    # Core
     session_id: str
     question: str
     user_profile: dict
+
+    # Pipeline outputs
     reconstructed_question: Optional[str]
     history: Optional[dict]
     schema: Optional[dict]
     intent: Optional[str]
     followup_count: int
+
+    # Cache
     cache_source: Optional[str]
     candidates: Optional[list]
+    embedding: Optional[list]           # Pre-computed in Node 02, reused in Node 03+04
+    tables_hint: Optional[list]         # Table hint from Node 02 for Node 06 acceleration
+
+    # Answer
     answer: Optional[str]
     sql_generated: Optional[str]
     validated: Optional[bool]
+    retry_count: int                    # Node 07 → Node 06 retry counter (max 2)
+
+    # Error / rejection paths
     threat: bool
-    rejection_reason: Optional[str]
+    context_error: Optional[str]       # From Node 00 validation failure
+    llm_reply: Optional[str]           # LLM-generated reply for non-DB paths
+    followup_question: Optional[str]   # Clarifying question for INCOMPLETE intent
     validation_verdict: Optional[str]
-    token_callback: Optional[object]  # async callable for WebSocket streaming
+
+    # WebSocket streaming callback (async callable)
+    token_callback: Optional[object]
 
 
-def _wrap_sql_node(state: ChatState) -> ChatState:
-    """Wraps async sql agent for sync LangGraph node."""
-    import asyncio
-    from nodes.sql_agent import run_sql_agent
-    callback = state.get("token_callback")
-    return asyncio.get_event_loop().run_until_complete(run_sql_agent(state, callback))
-
+# ── Async → sync wrappers for LangGraph ───────────────────────────────────────
 
 def _wrap_cache_node(state: ChatState) -> ChatState:
     import asyncio
-    from nodes.cache import cache_lookup
-    return asyncio.get_event_loop().run_until_complete(cache_lookup(state))
+    return asyncio.run(cache_lookup(state))
 
 
 def _wrap_validate_node(state: ChatState) -> ChatState:
     import asyncio
-    return asyncio.get_event_loop().run_until_complete(validate_answer(state))
+    return asyncio.run(validate_answer(state))
 
+
+def _wrap_sql_node(state: ChatState) -> ChatState:
+    import asyncio
+    from nodes.sql_agent import run_sql_agent
+    callback = state.get("token_callback")
+    return asyncio.run(run_sql_agent(state, callback))
+
+
+# ── Terminal nodes (pass-through — main.py reads state and sends WS messages) ─
 
 def _reject_node(state: ChatState) -> ChatState:
+    """Terminal node for CONVERSATIONAL / IRRELEVANT / SENSITIVE / WRITE intents."""
     return state
 
 
-def _meta_schema_node(state: ChatState) -> ChatState:
-    schema = state.get("schema", {})
-    tables = schema.get("tables", {})
-    if not tables:
-        answer = "No schema information available."
-    else:
-        lines = []
-        for tname, tinfo in tables.items():
-            cols = list(tinfo.get("columns", {}).keys())
-            lines.append(f"Table '{tname}': {', '.join(cols)}")
-        answer = "Available data:\n" + "\n".join(lines)
-    return {**state, "answer": answer, "validated": True}
-
-
 def _followup_node(state: ChatState) -> ChatState:
-    return {
-        **state,
-        "answer": "Could you clarify your question? What specific information are you looking for?",
-        "validated": True,
-    }
+    """Terminal node for INCOMPLETE intent — followup_question already in state."""
+    return state
 
 
 def _error_node(state: ChatState) -> ChatState:
-    return {
-        **state,
-        "answer": "I couldn't find reliable information for that question. Please try rephrasing.",
-        "validated": False,
-    }
+    """Terminal node for unrecoverable validation failure — llm_reply already in state."""
+    return state
 
 
-def build_graph(checkpointer=None) -> StateGraph:
+# ── Graph assembly ─────────────────────────────────────────────────────────────
+
+def build_graph(checkpointer=None):
     g = StateGraph(ChatState)
 
-    g.add_node("load_context", load_context)
-    g.add_node("safety", safety_filter)
-    g.add_node("reconstruct", reconstruct_and_classify)
-    g.add_node("cache", _wrap_cache_node)
-    g.add_node("check", check_candidates)
-    g.add_node("sql", _wrap_sql_node)
-    g.add_node("validate", _wrap_validate_node)
-    g.add_node("reject", _reject_node)
-    g.add_node("meta", _meta_schema_node)
-    g.add_node("followup", _followup_node)
-    g.add_node("error", _error_node)
+    # Register nodes
+    g.add_node("load_context",  load_context)
+    g.add_node("safety",        safety_filter)
+    g.add_node("reconstruct",   reconstruct_and_classify)
+    g.add_node("cache",         _wrap_cache_node)
+    g.add_node("check",         check_candidates)
+    g.add_node("sql",           _wrap_sql_node)
+    g.add_node("validate",      _wrap_validate_node)
+    g.add_node("reject",        _reject_node)
+    g.add_node("followup",      _followup_node)
+    g.add_node("error",         _error_node)
 
+    # Entry point
     g.set_entry_point("load_context")
+
+    # Fixed edges
     g.add_edge("load_context", "safety")
-    g.add_conditional_edges("safety", is_threat, {"reject": "reject", "continue": "reconstruct"})
-    g.add_conditional_edges("reconstruct", route_after_reconstruct, {
-        "cache": "cache",
-        "meta": "meta",
-        "followup": "followup",
-        "reject": "reject",
+
+    # Safety → reconstruct or reject (threat)
+    g.add_conditional_edges("safety", is_threat, {
+        "reject":   "reject",
+        "continue": "reconstruct",
     })
+
+    # Reconstruct → cache (DB_QUERY) | followup (INCOMPLETE) | reject (all others)
+    g.add_conditional_edges("reconstruct", route_after_reconstruct, {
+        "cache":    "cache",
+        "followup": "followup",
+        "reject":   "reject",
+    })
+
+    # Cache → validate (redis hit) | check (pgvector candidates) | sql (miss)
     g.add_conditional_edges("cache", route_after_cache, {
         "validate": "validate",
-        "check": "check",
-        "sql": "sql",
+        "check":    "check",
+        "sql":      "sql",
     })
+
+    # Checker → validate (match) | sql (no match / time-sensitive)
     g.add_conditional_edges("check", route_after_checker, {
         "validate": "validate",
-        "sql": "sql",
+        "sql":      "sql",
     })
+
+    # SQL always goes to validate
     g.add_edge("sql", "validate")
+
+    # Validate → done | sql (retry) | error (exhausted retries or threat)
     g.add_conditional_edges("validate", route_after_validation, {
-        "done": END,
-        "sql": "sql",
+        "done":  END,
+        "sql":   "sql",
         "error": "error",
     })
-    g.add_edge("reject", END)
-    g.add_edge("meta", END)
+
+    # Terminal nodes
+    g.add_edge("reject",   END)
     g.add_edge("followup", END)
-    g.add_edge("error", END)
+    g.add_edge("error",    END)
 
     return g.compile(checkpointer=checkpointer)
-
-
-def create_graph_with_checkpointer():
-    db_url = os.getenv("DATABASE_URL")
-    checkpointer = PostgresSaver.from_conn_string(db_url)
-    return build_graph(checkpointer=checkpointer)

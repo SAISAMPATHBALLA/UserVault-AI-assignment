@@ -1,27 +1,25 @@
-import os
-import anthropic
+"""
+Embedding utility — all-MiniLM-L6-v2 via sentence-transformers, dim=384.
+Computed once in Node 02, stored in LangGraph state, reused in Node 03+04.
+"""
+from sentence_transformers import SentenceTransformer
 
-_client = None
+_model: SentenceTransformer | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    return _client
+def _get_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model
 
 
 def embed_question(text: str) -> list[float]:
     """
-    Returns a 1536-dim embedding vector for the given text.
-    Uses Claude's voyage-3 model via the Anthropic embeddings endpoint.
+    Returns a 384-dim embedding vector for the given text.
+    Uses all-MiniLM-L6-v2 via sentence-transformers (local, no API key).
     """
-    client = _get_client()
-    response = client.embeddings.create(
-        model="voyage-3",
-        input=[text],
-    )
-    return response.embeddings[0].embedding
+    return _get_model().encode(text).tolist()
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:

@@ -1,6 +1,6 @@
 """
-ONE-TIME database initialization script.
-Creates the pgvector extension and all application tables.
+ONE-TIME App DB initialization script.
+Creates pgvector extension + all application-owned tables.
 Idempotent — safe to run multiple times.
 
 Usage:
@@ -14,21 +14,41 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+APP_DB_URL = os.getenv("APP_DB_URL")
+
+
+def create_database_if_missing():
+    url = make_url(APP_DB_URL)
+    db_name = url.database
+    admin_url = url.set(database="postgres")
+    admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :name"),
+            {"name": db_name}
+        ).fetchone()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+            print(f"Created database: {db_name}")
+    admin_engine.dispose()
 
 
 def init():
-    engine = create_engine(DATABASE_URL)
+    create_database_if_missing()
+    engine = create_engine(APP_DB_URL)
+
     with engine.connect() as conn:
-        # Enable pgvector
+        # pgvector extension
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
-        # conversations
+        # conversations — author_id ties session to user
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id                      SERIAL PRIMARY KEY,
                 session_id              UUID NOT NULL UNIQUE,
+                author_id               INTEGER NOT NULL,
                 title                   TEXT,
                 is_deleted              BOOLEAN DEFAULT FALSE,
                 history_summary         TEXT DEFAULT '',
@@ -36,6 +56,12 @@ def init():
                 created_at              TIMESTAMP DEFAULT NOW(),
                 updated_at              TIMESTAMP DEFAULT NOW()
             );
+        """))
+
+        # B-tree index for fast session → author lookup
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS conversations_author_idx
+            ON conversations (author_id);
         """))
 
         # messages
@@ -54,12 +80,13 @@ def init():
             );
         """))
 
-        # question_logs (semantic cache + audit)
+        # question_logs — semantic cache + audit log
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS question_logs (
                 id             SERIAL PRIMARY KEY,
+                author_id      INTEGER NOT NULL,
                 question       TEXT NOT NULL,
-                question_emb   vector(1536),
+                question_emb   vector(384),
                 intent         VARCHAR(50),
                 answered       BOOLEAN NOT NULL DEFAULT FALSE,
                 validated      BOOLEAN,
@@ -68,20 +95,27 @@ def init():
                 cache_hit      VARCHAR(20),
                 hit_count      INTEGER DEFAULT 1,
                 threat         BOOLEAN DEFAULT FALSE,
+                expires_at     TIMESTAMP,
                 asked_at       TIMESTAMP DEFAULT NOW()
             );
         """))
 
-        # ANN index for fast similarity search
+        # ANN index for cosine similarity search
         conn.execute(text("""
             CREATE INDEX IF NOT EXISTS question_logs_emb_idx
             ON question_logs USING ivfflat (question_emb vector_cosine_ops)
             WITH (lists = 100);
         """))
 
+        # B-tree index for user-scoped ANN pre-filter
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS question_logs_author_idx
+            ON question_logs (author_id);
+        """))
+
         conn.commit()
 
-    print("Database initialized successfully.")
+    print("App DB initialized successfully.")
 
 
 if __name__ == "__main__":
