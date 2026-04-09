@@ -2,7 +2,6 @@
 PostgreSQL MCP Server — SSE transport via uvicorn.
 Provides a `query_database` tool and `list_tables` tool against the Source DB (read-only).
 
-The main pipeline (Node 06) uses direct psycopg2 execution for speed.
 This MCP server is available for external tool integrations and future use.
 
 Usage:

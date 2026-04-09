@@ -45,7 +45,6 @@ export default function ConversationList({
     timezone:        profile?.timezone        ?? "Asia/Kolkata",
   });
 
-  // Sync form when profile is set externally (first save)
   useEffect(() => {
     if (profile) {
       setForm({
@@ -100,31 +99,27 @@ export default function ConversationList({
       {/* Branding */}
       <div style={BRAND}>
         <div style={BRAND_ICON}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
         </div>
-        <span style={{ fontWeight: 700, fontSize: 14, color: "#f8fafc", letterSpacing: ".01em" }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: "#f0f0f0", letterSpacing: ".02em" }}>
           Dev Analytics
         </span>
       </div>
 
-      {/* New Chat button — only if profile is set */}
+      {/* New Chat */}
       {profile && (
-        <button
-          onClick={onNew}
-          disabled={isCreating}
-          style={NEW_BTN}
-        >
+        <button onClick={onNew} disabled={isCreating} style={NEW_BTN}>
           {isCreating
             ? <><Loader size="xs" style={{ marginRight: 6 }} />Creating…</>
-            : <><span style={{ fontSize: 16, lineHeight: 1 }}>+</span>&nbsp; New Chat</>
+            : <><span style={{ fontSize: 15, lineHeight: 1 }}>+</span>&nbsp; New Chat</>
           }
         </button>
       )}
 
       {/* Conversation list */}
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
         {conversations.length > 0 && (
           <div style={SECTION_LABEL}>Recent</div>
         )}
@@ -133,8 +128,12 @@ export default function ConversationList({
             key={c.session_id}
             style={{
               ...ITEM,
-              background: c.session_id === activeSessionId ? "rgba(59,130,246,.15)" : "transparent",
-              borderLeft: c.session_id === activeSessionId ? "2px solid #3b82f6" : "2px solid transparent",
+              background: c.session_id === activeSessionId
+                ? "rgba(139,92,246,0.1)"
+                : "transparent",
+              borderLeft: c.session_id === activeSessionId
+                ? "2px solid #8b5cf6"
+                : "2px solid transparent",
             }}
           >
             <div
@@ -154,8 +153,8 @@ export default function ConversationList({
           </div>
         ))}
         {!profile && conversations.length === 0 && (
-          <div style={{ color: "#475569", fontSize: 12, padding: "12px 8px", lineHeight: 1.5 }}>
-            Configure your profile below to start chatting.
+          <div style={{ color: "#444", fontSize: 12, padding: "12px 8px", lineHeight: 1.5 }}>
+            Configure your profile below to start.
           </div>
         )}
       </div>
@@ -165,28 +164,23 @@ export default function ConversationList({
         <div style={DIVIDER} />
 
         {!showForm ? (
-          /* Collapsed: show user info + edit toggle */
           <div style={PROFILE_ROW}>
             <div style={AVATAR}>{profile?.name.charAt(0).toUpperCase() ?? "?"}</div>
             <div style={{ flex: 1, overflow: "hidden" }}>
               <div style={PROFILE_NAME}>{profile?.name}</div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>ID: {profile?.author_id}</div>
+              <div style={{ fontSize: 11, color: "#555" }}>ID: {profile?.author_id}</div>
             </div>
-            <button
-              title="Edit profile"
-              style={ICON_BTN}
-              onClick={() => setShowForm(true)}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <button title="Edit profile" style={ICON_BTN} onClick={() => setShowForm(true)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </button>
           </div>
         ) : (
-          /* Expanded: profile form */
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <div style={FORM_HEADER}>
-              <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em" }}>
+              <span style={{ color: "#666", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em" }}>
                 {profile ? "Edit Profile" : "Set Up Profile"}
               </span>
               {profile && (
@@ -221,11 +215,7 @@ export default function ConversationList({
               <div style={{ fontSize: 11, color: "#f87171", marginTop: 8, lineHeight: 1.4 }}>{error}</div>
             )}
 
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={SAVE_BTN}
-            >
+            <button onClick={handleSave} disabled={saving} style={SAVE_BTN}>
               {saving ? "Connecting…" : profile ? "Save Changes" : "Start Chatting →"}
             </button>
           </div>
@@ -238,7 +228,7 @@ export default function ConversationList({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, marginBottom: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>
+      <div style={{ fontSize: 10, color: "#555", fontWeight: 600, marginBottom: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>
         {label}
       </div>
       {children}
@@ -247,9 +237,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
+const P = "rgba(139,92,246,";   // purple shorthand
+
 const SIDEBAR: React.CSSProperties = {
-  width: 260,
-  background: "#0f172a",
+  width: 256,
+  background: "#000",
+  borderRight: `1px solid ${P}0.15)`,
   display: "flex",
   flexDirection: "column",
   padding: "16px 12px",
@@ -262,72 +255,85 @@ const BRAND: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 10, padding: "2px 4px 10px",
 };
 const BRAND_ICON: React.CSSProperties = {
-  width: 28, height: 28, borderRadius: 8,
-  background: "rgba(59,130,246,.15)",
+  width: 26, height: 26, borderRadius: 7,
+  background: `${P}0.12)`,
+  border: `1px solid ${P}0.25)`,
   display: "flex", alignItems: "center", justifyContent: "center",
 };
 const NEW_BTN: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-  background: "rgba(59,130,246,.12)", border: "1px solid rgba(59,130,246,.25)",
-  color: "#60a5fa", borderRadius: 8, padding: "8px 12px", fontSize: 13,
+  background: `${P}0.08)`,
+  border: `1px solid ${P}0.3)`,
+  color: "#a78bfa",
+  borderRadius: 8, padding: "8px 12px", fontSize: 13,
   fontWeight: 600, cursor: "pointer", width: "100%",
+  transition: "all .15s",
 };
 const SECTION_LABEL: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "#334155",
+  fontSize: 10, fontWeight: 700, color: "#333",
   padding: "4px 8px", textTransform: "uppercase", letterSpacing: ".08em",
 };
 const ITEM: React.CSSProperties = {
   display: "flex", alignItems: "center",
-  padding: "8px 10px", borderRadius: 8, gap: 6, cursor: "default",
+  padding: "8px 10px", borderRadius: 7, gap: 6,
+  cursor: "default", transition: "background .12s",
 };
 const ITEM_TITLE: React.CSSProperties = {
-  fontSize: 13, fontWeight: 500, color: "#cbd5e1",
+  fontSize: 13, fontWeight: 500, color: "#ccc",
   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
-const ITEM_TIME: React.CSSProperties = { fontSize: 11, color: "#475569", marginTop: 2 };
+const ITEM_TIME: React.CSSProperties = { fontSize: 11, color: "#444", marginTop: 2 };
 const DEL_BTN: React.CSSProperties = {
   background: "none", border: "none", cursor: "pointer",
-  color: "#334155", fontSize: 11, padding: "3px 5px", borderRadius: 4, flexShrink: 0,
+  color: "#333", fontSize: 11, padding: "3px 5px", borderRadius: 4, flexShrink: 0,
 };
 const PROFILE_SECTION: React.CSSProperties = { flexShrink: 0 };
-const DIVIDER: React.CSSProperties = { height: 1, background: "#1e293b", margin: "0 0 10px" };
+const DIVIDER: React.CSSProperties = {
+  height: 1, background: `${P}0.12)`, margin: "0 0 10px",
+};
 const PROFILE_ROW: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 8, padding: "2px 4px",
 };
 const AVATAR: React.CSSProperties = {
-  width: 30, height: 30, borderRadius: "50%",
-  background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-  color: "#fff", fontSize: 13, fontWeight: 700,
+  width: 28, height: 28, borderRadius: "50%",
+  background: `linear-gradient(135deg, #7c3aed, #6d28d9)`,
+  border: `1px solid ${P}0.4)`,
+  color: "#fff", fontSize: 12, fontWeight: 700,
   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
 };
 const PROFILE_NAME: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: "#e2e8f0",
+  fontSize: 13, fontWeight: 600, color: "#e0e0e0",
   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 const ICON_BTN: React.CSSProperties = {
   background: "none", border: "none", cursor: "pointer",
-  color: "#475569", padding: "4px", borderRadius: 6, display: "flex",
-  alignItems: "center", justifyContent: "center", flexShrink: 0,
+  color: "#555", padding: "4px", borderRadius: 6,
+  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
 };
 const FORM_HEADER: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10,
 };
 const INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box",
-  background: "#1e293b", border: "1px solid #334155",
-  borderRadius: 6, color: "#e2e8f0", padding: "6px 9px",
+  background: "#0d0d0d",
+  border: `1px solid ${P}0.2)`,
+  borderRadius: 6, color: "#e0e0e0", padding: "6px 9px",
   fontSize: 12, outline: "none",
+  fontFamily: "inherit",
 };
 const SELECT: React.CSSProperties = {
-  ...({} as React.CSSProperties),
   width: "100%", boxSizing: "border-box",
-  background: "#1e293b", border: "1px solid #334155",
-  borderRadius: 6, color: "#e2e8f0", padding: "6px 9px",
+  background: "#0d0d0d",
+  border: `1px solid ${P}0.2)`,
+  borderRadius: 6, color: "#e0e0e0", padding: "6px 9px",
   fontSize: 12, outline: "none",
-};
+  fontFamily: "inherit",
+} as React.CSSProperties;
 const SAVE_BTN: React.CSSProperties = {
   marginTop: 12, width: "100%",
-  background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-  border: "none", borderRadius: 8, color: "#fff",
+  background: `linear-gradient(135deg, #7c3aed, #6d28d9)`,
+  border: `1px solid ${P}0.4)`,
+  borderRadius: 8, color: "#fff",
   padding: "9px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+  boxShadow: `0 0 16px ${P}0.2)`,
 };

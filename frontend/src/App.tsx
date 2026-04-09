@@ -101,7 +101,7 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#ffffff" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#000" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
@@ -127,10 +127,10 @@ export default function App() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
-          <p style={{ color: "#64748b", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
+          <p style={{ color: "#888", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
             {profile ? "Select or start a conversation" : "Set up your profile to begin"}
           </p>
-          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+          <p style={{ color: "#444", fontSize: 13, margin: 0 }}>
             {profile
               ? "Choose a chat from the sidebar or create a new one"
               : "Fill in your profile details in the sidebar"}
@@ -147,14 +147,15 @@ const EMPTY_STATE: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f8fafc",
+  background: "#000",
   gap: 8,
 };
 const EMPTY_ICON: React.CSSProperties = {
   width: 80,
   height: 80,
   borderRadius: "50%",
-  background: "#f1f5f9",
+  background: "rgba(139,92,246,0.08)",
+  border: "1px solid rgba(139,92,246,0.2)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
