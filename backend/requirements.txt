@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 websockets
 anthropic
+mcp
 langgraph
 langgraph-checkpoint-postgres
 sqlalchemy

@@ -16,6 +16,8 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 import uuid
 from contextlib import asynccontextmanager
 
@@ -49,13 +51,28 @@ async def lifespan(app: FastAPI):
     schema_ok = generate_schema()
     logger.info("Schema cache ready (live=%s)", schema_ok)
 
-    # ── 2. Build LangGraph with App DB checkpointer ────────────────────────────
+    # ── 2. Start MCP server subprocess ─────────────────────────────────────────
+    mcp_port = os.getenv("POSTGRES_MCP_PORT", "5433")
+    mcp_proc = subprocess.Popen(
+        [sys.executable, "mcp_server.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    await asyncio.sleep(1.5)  # give uvicorn time to bind
+    logger.info("MCP server started (pid=%s, port=%s)", mcp_proc.pid, mcp_port)
+
+    # ── 3. Build LangGraph with App DB checkpointer ────────────────────────────
     app_db_url = os.getenv("APP_DB_URL")
-    async with AsyncPostgresSaver.from_conn_string(app_db_url) as checkpointer:
-        await checkpointer.setup()
-        _graph = build_graph(checkpointer=checkpointer)
-        logger.info("LangGraph pipeline ready")
-        yield
+    try:
+        async with AsyncPostgresSaver.from_conn_string(app_db_url) as checkpointer:
+            await checkpointer.setup()
+            _graph = build_graph(checkpointer=checkpointer)
+            logger.info("LangGraph pipeline ready")
+            yield
+    finally:
+        mcp_proc.terminate()
+        mcp_proc.wait()
+        logger.info("MCP server stopped")
 
 
 app = FastAPI(lifespan=lifespan)
