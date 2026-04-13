@@ -11,6 +11,7 @@ export interface UserProfile {
   team_id: number | null;
 }
 
+
 export interface Conversation {
   session_id: string;
   title: string;
@@ -20,7 +21,15 @@ export interface Conversation {
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function App() {
-  const [profile, setProfile]                 = useState<UserProfile | null>(null);
+  const User = {
+  author_id: 133716,
+  account_id: "user_123",
+  organization_id: 1711,
+  name: "Sam",
+  timezone: "IST",
+  team_id: null,
+  }
+  const [profile, setProfile]                 = useState<UserProfile | null>(User);
   const [conversations, setConversations]     = useState<Conversation[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [creatingSession, setCreatingSession] = useState(false);
@@ -52,13 +61,13 @@ export default function App() {
 
     setProfile(p);
 
-    if (authorChanged) {
-      // Different user — create fresh session and clear history
-      const sid = await createNewSession(p);
-      if (!sid) return;
-      setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
-      setActiveSessionId(sid);
-    }
+    // if (authorChanged) {
+    //   // Different user — create fresh session and clear history
+    //   const sid = await createNewSession(p);
+    //   if (!sid) return;
+    //   setConversations([{ session_id: sid, title: "New Chat", created_at: new Date().toISOString() }]);
+    //   setActiveSessionId(sid);
+    // }
     // If only name/timezone changed, existing session stays valid
   }, [profile, createNewSession]);
 
@@ -92,7 +101,7 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#f1f5f9" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#000" }}>
       <ConversationList
         conversations={conversations}
         activeSessionId={activeSessionId}
@@ -118,10 +127,10 @@ export default function App() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
-          <p style={{ color: "#64748b", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
+          <p style={{ color: "#888", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
             {profile ? "Select or start a conversation" : "Set up your profile to begin"}
           </p>
-          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+          <p style={{ color: "#444", fontSize: 13, margin: 0 }}>
             {profile
               ? "Choose a chat from the sidebar or create a new one"
               : "Fill in your profile details in the sidebar"}
@@ -138,14 +147,15 @@ const EMPTY_STATE: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f8fafc",
+  background: "#000",
   gap: 8,
 };
 const EMPTY_ICON: React.CSSProperties = {
   width: 80,
   height: 80,
   borderRadius: "50%",
-  background: "#f1f5f9",
+  background: "rgba(139,92,246,0.08)",
+  border: "1px solid rgba(139,92,246,0.2)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

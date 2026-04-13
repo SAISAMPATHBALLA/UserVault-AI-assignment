@@ -1,11 +1,11 @@
 """
 Node 06: Live SQL Agent.
-Claude Haiku 4.5 with standard Anthropic tool_use + direct psycopg2 execution.
+Claude Haiku 4.5 with standard Anthropic tool_use + MCP server execution.
 
 Step 1 — Table Selection: Haiku sees ALL tables + columns, outputs table names array only
 Step 2 — Schema Injection: only selected tables' columns into agent system prompt
 Step 3 — Agent Loop (max 5 iterations):
-          Model → tool_use → psycopg2 executes → tool_result → repeat
+          Model → tool_use → MCP server executes → tool_result → repeat
           Buffer all tokens; stream ONLY the final text answer via token_callback
 Step 4 — Post-processing: Python handles arithmetic transforms (not LLM)
 
@@ -18,12 +18,15 @@ import os
 import re
 
 import anthropic
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
-import db_source
 import schema_cache
 
 logger = logging.getLogger(__name__)
 _async_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+_MCP_URL = f"http://localhost:{os.getenv('POSTGRES_MCP_PORT', '5433')}/sse"
 
 MAX_ITERATIONS = 5
 
@@ -195,7 +198,7 @@ ADDITIONAL RULES:
             except json.JSONDecodeError:
                 tool_input = {}
 
-            result_str = _execute_tool(tc["name"], tool_input, author_id, organization_id)
+            result_str = await _execute_tool(tc["name"], tool_input, author_id, organization_id)
 
             # Track SQL (deduplicated)
             if "sql" in tool_input and tool_input["sql"] not in sql_used:
@@ -234,50 +237,46 @@ ADDITIONAL RULES:
     }
 
 
+# ── MCP Client ────────────────────────────────────────────────────────────────
+
+async def _call_mcp(tool_name: str, arguments: dict) -> str:
+    """Call a tool on the MCP server and return the result text."""
+    async with sse_client(url=_MCP_URL) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(tool_name, arguments)
+            if result.content:
+                return result.content[0].text
+            return "No result returned."
+
+
 # ── Tool Execution ─────────────────────────────────────────────────────────────
 
-def _execute_tool(name: str, tool_input: dict, author_id: int, organization_id: int) -> str:
-    """Execute a tool call and return result as string for the model."""
+async def _execute_tool(name: str, tool_input: dict, author_id: int, organization_id: int) -> str:
+    """Execute a tool call via MCP and return result as string for the model."""
     if name == "query_database":
         sql = tool_input.get("sql", "").strip()
         if not sql:
             return "ERROR: No SQL provided."
 
-        # Guard: reject non-SELECT queries before hitting DB
+        # Guard: reject non-SELECT queries before hitting MCP
         if _WRITE_PATTERN.match(sql):
             logger.warning("[Node06] Rejected write SQL attempt: %s", sql[:80])
             return "ERROR: Only SELECT queries are permitted."
 
-        # Enforce LIMIT 100 at code level (last line of defense)
+        # Enforce LIMIT 100 at code level (first line of defense)
         if not _LIMIT_PATTERN.search(sql):
             sql = sql.rstrip().rstrip(";") + " LIMIT 100"
             logger.info("[Node06] LIMIT injected into SQL")
 
-        logger.info("[Node06] Executing SQL: %s", sql[:])
+        logger.info("[Node06] Executing SQL via MCP: %s", sql[:])
         try:
-            rows = db_source.execute_query(sql)
-            if not rows:
-                return "No rows returned."
-            return _format_rows(rows)
-        except RuntimeError as exc:
-            logger.warning("[Node06] DB error (sanitized): %s", exc)
-            return f"ERROR: {exc}"
+            return await _call_mcp("query_database", {"sql": sql})
+        except Exception as exc:
+            logger.warning("[Node06] MCP error: %s", exc)
+            return "ERROR: Database unavailable."
 
     return f"ERROR: Unknown tool '{name}'."
-
-
-def _format_rows(rows: list[dict]) -> str:
-    """Format list of dicts as a simple text table."""
-    if not rows:
-        return "No rows returned."
-    cols = list(rows[0].keys())
-    header = " | ".join(cols)
-    sep = "-" * len(header)
-    lines = [header, sep]
-    for row in rows:
-        lines.append(" | ".join(str(row.get(c, "NULL")) for c in cols))
-    lines.append(f"\n({len(rows)} row{'s' if len(rows) != 1 else ''} returned)")
-    return "\n".join(lines)
 
 
 # ── Table Selection ────────────────────────────────────────────────────────────

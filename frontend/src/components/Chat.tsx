@@ -157,20 +157,20 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
       {/* Header */}
       <div style={HEADER}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", letterSpacing: "-.01em" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#f0f0f0", letterSpacing: "-.01em" }}>
             Developer Analytics
           </div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: "#555", marginTop: 1 }}>
             {userProfile.name} · Org {userProfile.organization_id}
           </div>
         </div>
         <div style={STATUS_PILL} data-live={connected}>
           <span style={{
             width: 6, height: 6, borderRadius: "50%",
-            background: connected ? "#22c55e" : "#94a3b8",
+            background: connected ? "#22c55e" : "#444",
             display: "inline-block",
           }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: connected ? "#16a34a" : "#94a3b8" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: connected ? "#22c55e" : "#555" }}>
             {connected ? "Live" : "Offline"}
           </span>
         </div>
@@ -189,10 +189,10 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
               </svg>
             </div>
-            <p style={{ color: "#334155", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
+            <p style={{ color: "#e0e0e0", fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>
               What would you like to know?
             </p>
-            <p style={{ color: "#94a3b8", fontSize: 13, maxWidth: 340, textAlign: "center", margin: 0 }}>
+            <p style={{ color: "#555", fontSize: 13, maxWidth: 340, textAlign: "center", margin: 0 }}>
               Ask about your commits, pull request activity, code reviews, or performance scores.
             </p>
           </div>
@@ -215,7 +215,7 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
         {status && (
           <div style={STATUS_ROW}>
             <Loader size="xs" />
-            <span style={{ fontSize: 12, color: "#64748b" }}>{status}</span>
+            <span style={{ fontSize: 12, color: "#666" }}>{status}</span>
           </div>
         )}
         <div ref={bottomRef} />
@@ -234,8 +234,8 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
             rows={1}
             style={{
               ...TEXTAREA,
-              background: isIdle ? "#fff" : "#f8fafc",
-              color: isIdle ? "#0f172a" : "#94a3b8",
+              background: "transparent",
+              color: isIdle ? "#e0e0e0" : "#555",
             }}
           />
           <button
@@ -244,9 +244,9 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
             style={{
               ...SEND_BTN,
               background: isIdle && input.trim()
-                ? "linear-gradient(135deg, #4f46e5, #6366f1)"
-                : "#e2e8f0",
-              color: isIdle && input.trim() ? "#fff" : "#94a3b8",
+                ? "linear-gradient(135deg, #7c3aed, #6d28d9)"
+                : "#0d0d0d",
+              color: isIdle && input.trim() ? "#fff" : "#444",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -254,7 +254,7 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
             </svg>
           </button>
         </div>
-        <div style={{ fontSize: 11, color: "#cbd5e1", textAlign: "center", marginTop: 6 }}>
+        <div style={{ fontSize: 11, color: "#333", textAlign: "center", marginTop: 6 }}>
           Enter to send · Shift+Enter for new line
         </div>
       </div>
@@ -263,24 +263,27 @@ export default function Chat({ sessionId, userProfile, onFirstMessage }: Props) 
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
+const P = "rgba(139,92,246,";
+
 const CONTAINER: React.CSSProperties = {
   flex: 1, display: "flex", flexDirection: "column",
-  height: "100vh", background: "#f8fafc", overflow: "hidden",
+  height: "100vh", background: "#000", overflow: "hidden",
 };
 const HEADER: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center",
-  padding: "14px 28px", background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
-  flexShrink: 0, boxShadow: "0 1px 3px rgba(0,0,0,.04)",
+  padding: "14px 28px", background: "#000",
+  borderBottom: `1px solid ${P}0.15)`,
+  flexShrink: 0,
 };
 const STATUS_PILL: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 5,
-  background: "#f8fafc", border: "1px solid #e2e8f0",
+  background: "#0a0a0a", border: `1px solid ${P}0.2)`,
   borderRadius: 20, padding: "4px 10px",
 };
 const MESSAGES_AREA: React.CSSProperties = {
   flex: 1, overflowY: "auto", padding: "24px 28px",
   display: "flex", flexDirection: "column", gap: 4,
+  background: "#000",
 };
 const CENTER: React.CSSProperties = {
   flex: 1, display: "flex", flexDirection: "column",
@@ -288,7 +291,8 @@ const CENTER: React.CSSProperties = {
 };
 const WELCOME_ICON: React.CSSProperties = {
   width: 64, height: 64, borderRadius: "50%",
-  background: "linear-gradient(135deg, rgba(79,70,229,.08), rgba(99,102,241,.12))",
+  background: `${P}0.08)`,
+  border: `1px solid ${P}0.2)`,
   display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16,
 };
 const STATUS_ROW: React.CSSProperties = {
@@ -296,14 +300,13 @@ const STATUS_ROW: React.CSSProperties = {
 };
 const INPUT_AREA: React.CSSProperties = {
   padding: "14px 28px 16px",
-  background: "#fff", borderTop: "1px solid #e2e8f0",
-  flexShrink: 0, boxShadow: "0 -1px 6px rgba(0,0,0,.04)",
+  background: "#000", borderTop: `1px solid ${P}0.15)`,
+  flexShrink: 0,
 };
 const INPUT_WRAPPER: React.CSSProperties = {
   display: "flex", alignItems: "flex-end", gap: 10,
-  background: "#fff", border: "1.5px solid #e2e8f0",
+  background: "#0a0a0a", border: `1.5px solid ${P}0.25)`,
   borderRadius: 14, padding: "10px 10px 10px 16px",
-  boxShadow: "0 1px 4px rgba(0,0,0,.04)",
 };
 const TEXTAREA: React.CSSProperties = {
   flex: 1, border: "none", outline: "none", resize: "none",

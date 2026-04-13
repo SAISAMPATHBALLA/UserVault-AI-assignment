@@ -60,43 +60,43 @@ export default function ReconstructedQuery({ original, reconstructed, onStop, on
 }
 
 const WRAPPER: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderLeft: "3px solid #f59e0b",
+  background: "#0a0a0a",
+  border: "1px solid rgba(139,92,246,0.2)",
+  borderLeft: "3px solid #8b5cf6",
   borderRadius: 10,
   padding: "12px 14px",
   maxWidth: "75%",
   display: "flex", flexDirection: "column", gap: 6,
-  boxShadow: "0 1px 4px rgba(0,0,0,.05)",
 };
 const LABEL: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "#92400e",
+  fontSize: 10, fontWeight: 700, color: "#a78bfa",
   textTransform: "uppercase", letterSpacing: ".06em",
   display: "flex", alignItems: "center",
 };
 const QUERY_TEXT: React.CSSProperties = {
-  fontStyle: "italic", color: "#1e293b", fontSize: 13, lineHeight: 1.55,
+  fontStyle: "italic", color: "#d0d0d0", fontSize: 13, lineHeight: 1.55,
 };
 const HINT: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8",
+  fontSize: 11, color: "#444",
 };
 const EDIT_INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box",
-  border: "1px solid #e2e8f0", borderRadius: 6,
+  background: "#0d0d0d",
+  border: "1px solid rgba(139,92,246,0.25)", borderRadius: 6,
   padding: "7px 10px", fontSize: 13, outline: "none",
-  fontFamily: "inherit", resize: "none",
+  fontFamily: "inherit", resize: "none", color: "#e0e0e0",
 };
 const ACTIONS: React.CSSProperties = { display: "flex", gap: 6, marginTop: 2 };
 const BTN_BASE: React.CSSProperties = {
-  border: "1px solid #e2e8f0", borderRadius: 6,
+  border: "1px solid rgba(139,92,246,0.2)", borderRadius: 6,
   padding: "4px 10px", fontSize: 12, cursor: "pointer", fontWeight: 500,
 };
 const BTN_PRIMARY: React.CSSProperties = {
-  ...BTN_BASE, background: "#4f46e5", color: "#fff", border: "none",
+  ...BTN_BASE, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", border: "none",
 };
 const BTN_GHOST: React.CSSProperties = {
-  ...BTN_BASE, background: "#fff", color: "#475569",
+  ...BTN_BASE, background: "#0d0d0d", color: "#a78bfa",
 };
 const BTN_STOP: React.CSSProperties = {
-  ...BTN_BASE, background: "#fff", color: "#ef4444", borderColor: "#fecaca",
+  ...BTN_BASE, background: "#0d0d0d", color: "#f87171", borderColor: "rgba(239,68,68,0.3)",
 };
